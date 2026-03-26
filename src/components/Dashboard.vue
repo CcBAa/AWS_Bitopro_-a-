@@ -1,17 +1,19 @@
 <template>
-  <div class="min-h-screen bg-gray-950 text-gray-100 pb-16 font-sans">
+  <div class="page-bg min-h-screen text-gray-100 pb-16 font-sans">
 
     <!-- ══════════════════════════════════════════════════
          HEADER
     ══════════════════════════════════════════════════ -->
-    <header class="sticky top-0 z-50 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-8 py-4">
+    <header class="sticky top-0 z-50 header-glass px-8 py-4">
       <div class="max-w-6xl mx-auto flex items-center justify-between">
 
         <div class="flex items-center gap-4">
-          <span class="text-3xl">🔍</span>
+          <div class="logo-icon-wrap">
+            <span class="text-xl">🔍</span>
+          </div>
           <div>
-            <h1 class="text-xl font-bold text-blue-400 tracking-tight">去偽存真 · DisInfo Shield</h1>
-            <p class="text-xs text-gray-500">AI-Powered Disinformation Detection System</p>
+            <h1 class="text-xl font-bold gradient-text tracking-tight">去偽存真 · DisInfo Shield</h1>
+            <p class="text-xs text-gray-500 mt-0.5">AI-Powered Disinformation Detection System</p>
           </div>
         </div>
 
@@ -20,10 +22,10 @@
           <span
             class="text-xs font-bold px-3 py-1 rounded-full border"
             :class="apiUrlOk
-              ? 'text-green-400 border-green-500/40 bg-green-500/10'
-              : 'text-red-400  border-red-500/40  bg-red-500/10 animate-pulse'"
+              ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/8'
+              : 'text-red-400 border-red-500/30 bg-red-500/8 animate-pulse'"
           >
-            {{ apiUrlOk ? 'ENV OK' : 'ENV MISSING' }}
+            {{ apiUrlOk ? '● ENV OK' : '● ENV MISSING' }}
           </span>
 
           <!-- 系統狀態 -->
@@ -43,14 +45,14 @@
       <!-- ══════════════════════════════════════════════
            UPLOAD CARD
       ══════════════════════════════════════════════ -->
-      <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-        <h2 class="flex items-center gap-2 text-base font-semibold mb-4">
-          <span>📁</span> 上傳數據集
+      <section class="card p-6">
+        <h2 class="section-title mb-5">
+          <span class="section-icon">📁</span> 上傳數據集
         </h2>
 
         <!-- Drop Zone -->
         <div
-          class="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors duration-200 mb-4"
+          class="drop-zone border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300 mb-5"
           :class="dropZoneCls"
           @dragover.prevent="isDragging = true"
           @dragleave.prevent="isDragging = false"
@@ -61,34 +63,37 @@
                  :disabled="isProcessing" @change="onFileChange" />
 
           <template v-if="!selectedFile">
-            <p class="text-4xl mb-2">📂</p>
-            <p class="text-gray-300">拖曳 <code>.csv</code> 至此，或 <span class="text-blue-400 underline">點擊選擇</span></p>
-            <p class="text-xs text-gray-600 mt-1">UTF-8 編碼，支援任意欄位結構</p>
+            <p class="text-5xl mb-3 opacity-40">📂</p>
+            <p class="text-gray-300 text-sm">
+              拖曳 <code class="inline-code">.csv</code> 至此，或
+              <span class="text-blue-400 underline underline-offset-2">點擊選擇</span>
+            </p>
+            <p class="text-xs text-gray-600 mt-2">UTF-8 編碼，支援任意欄位結構</p>
           </template>
           <template v-else>
-            <div class="flex items-center justify-center gap-3">
-              <span class="text-3xl">📄</span>
+            <div class="flex items-center justify-center gap-4">
+              <span class="text-4xl">📄</span>
               <div class="text-left">
                 <p class="font-semibold text-gray-100">{{ selectedFile.name }}</p>
                 <p class="text-xs text-gray-500 mt-0.5">{{ fmtSize(selectedFile.size) }}</p>
               </div>
               <button v-if="!isProcessing"
-                      class="ml-4 text-xs text-red-400 border border-red-500/40 px-2 py-1 rounded hover:bg-red-500/10 transition"
+                      class="ml-2 text-xs text-red-400 border border-red-500/30 px-3 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
                       @click.stop="removeFile">✕ 移除</button>
             </div>
           </template>
         </div>
 
         <!-- Progress Bar -->
-        <div v-if="isProcessing || progress > 0" class="mb-4">
-          <div class="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{{ progressLabel }}</span>
-            <span class="text-blue-400 font-semibold">{{ Math.round(progress) }}%</span>
+        <div v-if="isProcessing || progress > 0" class="mb-5">
+          <div class="flex justify-between text-xs mb-2">
+            <span class="text-gray-400">{{ progressLabel }}</span>
+            <span class="text-blue-400 font-bold tabular-nums">{{ Math.round(progress) }}%</span>
           </div>
-          <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div class="h-2 bg-gray-800/80 rounded-full overflow-hidden">
             <div
-              class="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-500"
-              :class="{ 'shimmer': isProcessing }"
+              class="h-full rounded-full transition-all duration-500"
+              :class="isProcessing ? 'shimmer' : 'bg-gradient-to-r from-blue-600 to-cyan-400'"
               :style="{ width: progress + '%' }"
             ></div>
           </div>
@@ -98,8 +103,8 @@
         <button
           class="w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2"
           :class="isProcessing || !selectedFile || !apiUrlOk
-            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:-translate-y-0.5'"
+            ? 'bg-gray-800/60 text-gray-500 cursor-not-allowed border border-gray-700/50'
+            : 'btn-primary'"
           :disabled="isProcessing || !selectedFile || !apiUrlOk"
           @click="startAnalysis"
         >
@@ -107,7 +112,6 @@
             🚀 送出分析
           </template>
           <template v-else>
-            <!-- AI 偵辦中 動畫 -->
             <span class="flex items-center gap-2">
               <span class="ai-spinner"></span>
               AI 偵辦中…
@@ -116,8 +120,8 @@
         </button>
 
         <!-- ENV 缺失提示 -->
-        <p v-if="!apiUrlOk" class="mt-3 text-xs text-red-400 text-center">
-          ⚠️ <code>VITE_API_URL</code> 未設定，請建立 <code>.env</code> 或至 Amplify 設定環境變數
+        <p v-if="!apiUrlOk" class="mt-3 text-xs text-red-400/80 text-center">
+          ⚠️ <code class="font-mono text-xs">VITE_API_URL</code> 未設定，請建立 <code class="font-mono text-xs">.env</code> 或至 Amplify 設定環境變數
         </p>
       </section>
 
@@ -127,18 +131,18 @@
       <div v-if="isProcessing || results.length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <!-- 偵查日誌 -->
-        <section class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col">
-          <h2 class="flex items-center gap-2 text-base font-semibold mb-3">
-            <span>🖥️</span> 偵查日誌
+        <section class="lg:col-span-2 card p-6 flex flex-col">
+          <h2 class="section-title mb-3">
+            <span class="section-icon">🖥️</span> 偵查日誌
             <span v-if="isProcessing"
-                  class="ml-1 text-xs font-black px-2 py-0.5 rounded bg-red-500 text-white animate-pulse tracking-widest">
-              LIVE
+                  class="ml-2 text-xs font-black px-2 py-0.5 rounded-md bg-red-500/90 text-white animate-pulse tracking-widest">
+              ● LIVE
             </span>
           </h2>
           <div ref="logEl" class="log-window flex-1">
             <div v-for="(e, i) in logs" :key="i" class="log-line">
               <span class="log-time">[{{ e.time }}]</span>
-              <span :class="logTagCls(e.level)">{{ e.level.toUpperCase() }}</span>
+              <span class="log-tag" :class="logTagCls(e.level)">{{ e.level.toUpperCase() }}</span>
               <span class="log-msg">{{ e.message }}</span>
             </div>
             <div v-if="isProcessing" class="log-time animate-pulse mt-1">▌</div>
@@ -146,14 +150,14 @@
         </section>
 
         <!-- 風險統計 -->
-        <section v-if="results.length > 0" class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <h2 class="flex items-center gap-2 text-base font-semibold mb-4">
-            <span>📊</span> 風險統計
+        <section v-if="results.length > 0" class="card p-6">
+          <h2 class="section-title mb-4">
+            <span class="section-icon">📊</span> 風險統計
           </h2>
           <div class="grid grid-cols-2 gap-3">
-            <div v-for="s in stats" :key="s.label" class="bg-gray-800 rounded-xl p-4 text-center">
-              <p class="text-3xl font-black" :class="s.color">{{ s.value }}</p>
-              <p class="text-xs text-gray-500 mt-1">{{ s.label }}</p>
+            <div v-for="s in stats" :key="s.label" class="stat-card" :class="s.cardCls">
+              <p class="text-3xl font-black leading-none" :class="s.color">{{ s.value }}</p>
+              <p class="text-xs mt-2 text-gray-500">{{ s.label }}</p>
             </div>
           </div>
         </section>
@@ -162,17 +166,15 @@
       <!-- ══════════════════════════════════════════════
            RESULTS TABLE
       ══════════════════════════════════════════════ -->
-      <section v-if="results.length > 0" class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 class="flex items-center gap-2 text-base font-semibold">
-            <span>📋</span> 分析結果
+      <section v-if="results.length > 0" class="card p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <h2 class="section-title">
+            <span class="section-icon">📋</span> 分析結果
           </h2>
           <div class="flex gap-2">
             <input v-model="filterText" type="text" placeholder="搜尋…"
-                   class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200
-                          placeholder-gray-600 outline-none focus:border-blue-500 w-40" />
-            <select v-model="filterRisk"
-                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 outline-none focus:border-blue-500 cursor-pointer">
+                   class="filter-control w-40" />
+            <select v-model="filterRisk" class="filter-control cursor-pointer">
               <option value="">全部</option>
               <option value="RED">🔴 高風險</option>
               <option value="YELLOW">🟡 中風險</option>
@@ -181,36 +183,35 @@
           </div>
         </div>
 
-        <!-- 白底表格（讓 Tailwind 的 bg-red-50 等顯色正確） -->
-        <div class="rounded-xl overflow-hidden border border-gray-700 overflow-x-auto">
+        <div class="rounded-xl overflow-hidden border border-white/[0.06] overflow-x-auto">
           <table class="w-full text-sm border-collapse">
             <thead>
-              <tr class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wide">
-                <th class="px-3 py-2.5 text-left border-b border-gray-700 w-8">#</th>
+              <tr class="bg-gray-800/60 text-gray-400 text-xs uppercase tracking-wider">
+                <th class="px-4 py-3 text-left border-b border-white/[0.06] w-8 font-semibold">#</th>
                 <th v-for="col in tableColumns" :key="col.key"
-                    class="px-3 py-2.5 text-left border-b border-gray-700 cursor-pointer hover:text-blue-400 select-none whitespace-nowrap"
+                    class="px-4 py-3 text-left border-b border-white/[0.06] cursor-pointer hover:text-blue-400 select-none whitespace-nowrap font-semibold transition-colors"
                     @click="sortBy(col.key)">
                   {{ col.label }}
-                  <span class="ml-1 opacity-50 text-xs">{{ sortIcon(col.key) }}</span>
+                  <span class="ml-1 opacity-40 text-xs">{{ sortIcon(col.key) }}</span>
                 </th>
-                <th class="px-3 py-2.5 text-left border-b border-gray-700 whitespace-nowrap">風險等級</th>
+                <th class="px-4 py-3 text-left border-b border-white/[0.06] whitespace-nowrap font-semibold">風險等級</th>
               </tr>
             </thead>
-            <tbody class="bg-white text-gray-800">
+            <tbody>
               <tr
                 v-for="(row, i) in filteredResults"
                 :key="i"
-                class="border-b border-gray-100 transition-colors"
+                class="border-b border-white/[0.04] transition-all"
                 :class="riskRowCls(row)"
               >
-                <td class="px-3 py-2.5 text-gray-400 text-xs">{{ i + 1 }}</td>
+                <td class="px-4 py-2.5 text-gray-600 text-xs">{{ i + 1 }}</td>
                 <td v-for="col in tableColumns" :key="col.key"
-                    class="px-3 py-2.5 max-w-xs">
+                    class="px-4 py-2.5 max-w-xs">
                   <span class="block truncate" :title="str(row[col.key])">
                     {{ trunc(str(row[col.key]), 80) }}
                   </span>
                 </td>
-                <td class="px-3 py-2.5 whitespace-nowrap">
+                <td class="px-4 py-2.5 whitespace-nowrap">
                   <span class="risk-badge" :class="riskBadgeCls(row.risk_level)">
                     {{ riskLabel(row.risk_level) }}
                   </span>
@@ -218,12 +219,12 @@
               </tr>
               <tr v-if="!filteredResults.length">
                 <td :colspan="tableColumns.length + 2"
-                    class="px-3 py-8 text-center text-gray-400">無符合條件的資料</td>
+                    class="px-4 py-10 text-center text-gray-500">無符合條件的資料</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="text-xs text-gray-500 text-right mt-2">
+        <p class="text-xs text-gray-600 text-right mt-3">
           顯示 {{ filteredResults.length }} / {{ results.length }} 筆
         </p>
       </section>
@@ -235,7 +236,7 @@
     ══════════════════════════════════════════════════ -->
     <Transition name="toast">
       <div v-if="errorMsg" class="fixed bottom-7 right-7 z-50 max-w-md
-                                   bg-gray-900 border border-red-500/60
+                                   bg-gray-900/95 border border-red-500/40 backdrop-blur-xl
                                    rounded-2xl p-5 shadow-2xl shadow-black/60
                                    flex gap-4 items-start">
         <span class="text-2xl mt-0.5 flex-shrink-0">⚠️</span>
@@ -243,7 +244,7 @@
           <p class="font-bold text-red-400 text-sm mb-1">API 錯誤</p>
           <p class="text-gray-300 text-sm leading-relaxed">{{ errorMsg }}</p>
         </div>
-        <button class="text-gray-500 hover:text-gray-300 flex-shrink-0 mt-0.5"
+        <button class="text-gray-600 hover:text-gray-300 flex-shrink-0 mt-0.5 transition-colors"
                 @click="errorMsg = ''">✕</button>
       </div>
     </Transition>
@@ -286,10 +287,10 @@ const statusStyle = computed(() => {
 
 // ── Drop Zone Classes ──────────────────────────────────────────
 const dropZoneCls = computed(() => {
-  if (isProcessing.value) return 'border-gray-700 bg-gray-800/40 cursor-not-allowed opacity-60'
-  if (isDragging.value)   return 'border-blue-400 bg-blue-500/10'
-  if (selectedFile.value) return 'border-green-500/50 bg-green-500/5'
-  return 'border-gray-700 hover:border-blue-500/60 hover:bg-blue-500/5'
+  if (isProcessing.value) return 'border-gray-700/50 bg-gray-800/20 cursor-not-allowed opacity-50'
+  if (isDragging.value)   return 'border-blue-400/60 bg-blue-500/8 drop-glow'
+  if (selectedFile.value) return 'border-emerald-500/40 bg-emerald-500/5'
+  return 'border-gray-700/60 hover:border-blue-500/50 hover:bg-blue-500/5'
 })
 
 // ── Risk Counts / Stats ────────────────────────────────────────
@@ -300,10 +301,10 @@ const riskCounts = computed(() => ({
 }))
 
 const stats = computed(() => [
-  { label: '總筆數',    value: results.value.length, color: 'text-gray-100' },
-  { label: '高風險 🔴', value: riskCounts.value.RED,    color: 'text-red-400'    },
-  { label: '中風險 🟡', value: riskCounts.value.YELLOW, color: 'text-yellow-400' },
-  { label: '低風險 🔵', value: riskCounts.value.BLUE,   color: 'text-blue-400'   },
+  { label: '總筆數',    value: results.value.length,   color: 'text-gray-100',   cardCls: 'stat-total'  },
+  { label: '高風險 🔴', value: riskCounts.value.RED,    color: 'text-red-400',    cardCls: 'stat-red'    },
+  { label: '中風險 🟡', value: riskCounts.value.YELLOW, color: 'text-yellow-400', cardCls: 'stat-yellow' },
+  { label: '低風險 🔵', value: riskCounts.value.BLUE,   color: 'text-blue-400',   cardCls: 'stat-blue'   },
 ])
 
 // ── Table Columns ──────────────────────────────────────────────
@@ -419,21 +420,15 @@ function logTagCls(level) {
     info:    'text-blue-400',
     warn:    'text-yellow-400',
     error:   'text-red-400',
-    success: 'text-green-400',
+    success: 'text-emerald-400',
   }[level] ?? 'text-gray-400'
 }
 
-/**
- * 表格行背景
- * RED / label=1  → bg-red-50    text-red-700
- * YELLOW         → bg-yellow-50 text-yellow-900
- * BLUE / GREEN   → bg-blue-50   text-blue-900
- */
 function riskRowCls(row) {
   const lvl = row.risk_level
-  if (lvl === 'RED'    || Number(row.label) === 1) return 'bg-red-50    text-red-700'
-  if (lvl === 'YELLOW')                            return 'bg-yellow-50 text-yellow-900'
-  return 'bg-blue-50 text-blue-900'
+  if (lvl === 'RED'    || Number(row.label) === 1) return 'row-red'
+  if (lvl === 'YELLOW')                            return 'row-yellow'
+  return 'row-blue'
 }
 
 function riskBadgeCls(lvl) {
@@ -466,59 +461,230 @@ watch(errorMsg, v => { if (v) setTimeout(() => { errorMsg.value = '' }, 10000) }
 </script>
 
 <style scoped>
-/* ── Log Window ──────────────────────────────────────────── */
-.log-window {
-  background: #010409;
-  border: 1px solid #21262d;
-  border-radius: 10px;
-  padding: 14px;
-  height: 280px;
-  overflow-y: auto;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-  font-size: 0.76rem;
-  scroll-behavior: smooth;
+/* ── Page Background ──────────────────────────────────────── */
+.page-bg {
+  background-color: #07091a;
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -10%, rgba(59, 130, 246, 0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 60%);
 }
-.log-window::-webkit-scrollbar { width: 4px; }
-.log-window::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
 
-.log-line { display: flex; gap: 8px; margin-bottom: 4px; line-height: 1.6; flex-wrap: wrap; }
-.log-time { color: #3fb950; flex-shrink: 0; }
-.log-tag  { flex-shrink: 0; font-weight: 700; min-width: 58px; }
-.log-msg  { color: #adbac7; word-break: break-all; }
+/* ── Header ──────────────────────────────────────────────── */
+.header-glass {
+  background: rgba(7, 9, 26, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 1px 32px rgba(0, 0, 0, 0.4);
+}
 
-/* ── Progress Shimmer ───────────────────────────────────── */
+/* ── Logo Icon ───────────────────────────────────────────── */
+.logo-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(99,102,241,0.1) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.1);
+}
+
+/* ── Gradient Title ──────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card {
+  background: linear-gradient(180deg, rgba(15, 21, 50, 0.8) 0%, rgba(10, 14, 35, 0.6) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 4px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+/* ── Section Titles ──────────────────────────────────────── */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.section-icon { font-size: 0.9rem; }
+
+/* ── Inline Code ─────────────────────────────────────────── */
+.inline-code {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.8em;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  color: #93c5fd;
+}
+
+/* ── Drop Zone ───────────────────────────────────────────── */
+.drop-zone {
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drop-glow {
+  box-shadow: 0 0 24px rgba(59, 130, 246, 0.15);
+}
+
+/* ── Primary Button ──────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 60%, #60a5fa 100%);
+  color: white;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35), 0 0 0 1px rgba(99, 170, 255, 0.2) inset;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.45);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* ── Progress Shimmer ────────────────────────────────────── */
 .shimmer {
   background-size: 200% 100%;
-  background-image: linear-gradient(90deg, #1d4ed8 0%, #60a5fa 50%, #1d4ed8 100%);
-  animation: shimmer 1.8s linear infinite;
+  background-image: linear-gradient(90deg, #1d4ed8 0%, #60a5fa 40%, #a5b4fc 60%, #1d4ed8 100%);
+  animation: shimmer 1.6s linear infinite;
 }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
-/* ── AI Spinner ─────────────────────────────────────────── */
+/* ── AI Spinner ──────────────────────────────────────────── */
 .ai-spinner {
   display: inline-block;
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,.3);
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255,255,255,0.25);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin .7s linear infinite;
+  animation: spin 0.7s linear infinite;
   flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Risk Badges ────────────────────────────────────────── */
+/* ── Log Window ──────────────────────────────────────────── */
+.log-window {
+  background: #02040d;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 14px 16px;
+  height: 280px;
+  overflow-y: auto;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.73rem;
+  scroll-behavior: smooth;
+  box-shadow: inset 0 2px 16px rgba(0,0,0,0.6);
+}
+.log-window::-webkit-scrollbar { width: 3px; }
+.log-window::-webkit-scrollbar-track { background: transparent; }
+.log-window::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+.log-line { display: flex; gap: 8px; margin-bottom: 4px; line-height: 1.6; flex-wrap: wrap; }
+.log-time { color: #34d399; flex-shrink: 0; opacity: 0.7; }
+.log-tag  { flex-shrink: 0; font-weight: 700; min-width: 58px; }
+.log-msg  { color: #94a3b8; word-break: break-all; }
+
+/* ── Stat Cards ──────────────────────────────────────────── */
+.stat-card {
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  border: 1px solid;
+}
+.stat-total  {
+  background: rgba(30, 41, 70, 0.6);
+  border-color: rgba(148, 163, 184, 0.12);
+}
+.stat-red {
+  background: rgba(127, 29, 29, 0.25);
+  border-color: rgba(248, 113, 113, 0.2);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.06) inset;
+}
+.stat-yellow {
+  background: rgba(120, 53, 15, 0.25);
+  border-color: rgba(251, 191, 36, 0.2);
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.06) inset;
+}
+.stat-blue {
+  background: rgba(23, 37, 84, 0.4);
+  border-color: rgba(96, 165, 250, 0.2);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.06) inset;
+}
+
+/* ── Filter Controls ─────────────────────────────────────── */
+.filter-control {
+  background: rgba(15, 23, 50, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.83rem;
+  color: #e2e8f0;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.filter-control::placeholder { color: #374151; }
+.filter-control:focus {
+  border-color: rgba(96, 165, 250, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ── Table Row Colors (dark mode) ────────────────────────── */
+.row-red    {
+  background: rgba(127, 29, 29, 0.2);
+  color: #fca5a5;
+}
+.row-red:hover    { background: rgba(127, 29, 29, 0.32); }
+
+.row-yellow {
+  background: rgba(120, 53, 15, 0.2);
+  color: #fde68a;
+}
+.row-yellow:hover { background: rgba(120, 53, 15, 0.32); }
+
+.row-blue {
+  background: rgba(23, 37, 84, 0.25);
+  color: #bfdbfe;
+}
+.row-blue:hover   { background: rgba(23, 37, 84, 0.38); }
+
+/* ── Risk Badges ─────────────────────────────────────────── */
 .risk-badge {
   display: inline-block;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: 99px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
-.badge-red    { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-.badge-yellow { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
-.badge-blue   { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.badge-red    { background: rgba(239, 68, 68, 0.15);   color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+.badge-yellow { background: rgba(234, 179, 8, 0.15);   color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); }
+.badge-blue   { background: rgba(59, 130, 246, 0.15);  color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
 
-/* ── Toast Transition ───────────────────────────────────── */
+/* ── Toast Transition ────────────────────────────────────── */
 .toast-enter-active, .toast-leave-active { transition: opacity .3s, transform .3s; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(14px); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(16px); }
 </style>
