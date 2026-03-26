@@ -119,6 +119,22 @@ export async function analyzeFile(file, onProgress, onLog) {
   // ── Step 3: POST 至 Lambda ───────────────────────────────────
   log('info', `資料上傳成功，送往 ${API_URL}`)
 
+  // ── CORS 預檢：先送 OPTIONS，確認後端有正確回應 ────────────────
+  try {
+    await axios.options(API_URL, {
+      headers: {
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type',
+      },
+      timeout: 10_000,
+    })
+    log('info', 'CORS 預檢通過 ✅')
+  } catch (preflightErr) {
+    // OPTIONS 失敗通常就是 CORS 未設定
+    console.warn('[api] OPTIONS preflight failed:', preflightErr.message)
+    log('warn', 'CORS 預檢失敗，嘗試直接 POST（若失敗請修後端 CORS 設定）')
+  }
+
   let response
   try {
     response = await axios.post(API_URL, payload, {
@@ -138,8 +154,13 @@ export async function analyzeFile(file, onProgress, onLog) {
         '偵辦超時，這可能是因為數據量較大或 AI 思考較久，' +
         '請確認 S3 是否已產出結果。'
       )
-    if (err.message?.includes('Network Error'))
-      throw new Error('無法連線至 Lambda，請確認 CORS 設定或網路連線狀態')
+    // Network Error 在 CORS 失敗時觸發（瀏覽器不讓請求送出）
+    if (!err.response && err.message?.includes('Network Error'))
+      throw new Error(
+        'CORS 錯誤：瀏覽器封鎖了此請求。\n' +
+        '請至 Lambda Console → Configuration → Function URL → Edit → 啟用 CORS，\n' +
+        '並確認 Allow origins 設為 * 或你的網站網址。'
+      )
 
     throw new Error(err.response?.data?.message ?? err.message ?? '未知 API 錯誤')
   }
