@@ -45,8 +45,8 @@ async function withRetry(fn, log, maxRetries = 1) {
 
       // 網路層錯誤（斷線、CORS、timeout）才重試
       if (attempt < maxRetries) {
-        log('warn', `網路錯誤，3 秒後自動重試（第 ${attempt + 1} 次）…`)
-        await new Promise(r => setTimeout(r, 3000))
+        log('warn', `網路錯誤，60 秒後自動重試（第 ${attempt + 1} 次）…`)
+        await new Promise(r => setTimeout(r, 60_000))
       } else {
         throw err
       }
