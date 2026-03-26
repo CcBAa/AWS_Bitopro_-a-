@@ -6,7 +6,6 @@
  *     AWS Amplify → Console > App settings > Environment variables
  */
 import axios from 'axios'
-import Papa from 'papaparse'
 
 // ── 環境變數驗證 ────────────────────────────────────────────────
 const API_URL = import.meta.env.VITE_API_URL
@@ -19,70 +18,81 @@ if (!API_URL) {
   )
 }
 
-// ── 常數 ────────────────────────────────────────────────────────
-const TIMEOUT_MS = 180_000   // 3 分鐘，容許 Bedrock 長時間推論
+const TIMEOUT_MS = 180_000  // 3 分鐘，容許 SageMaker/Bedrock 長時間推論
 
 // ─────────────────────────────────────────────────────────────────
-// CSV 解析（PapaParse）
-// 回傳 { fields: string[], data: object[] }
+// 工具：讀取 File 為純文字（用於 text/csv 傳送）
 // ─────────────────────────────────────────────────────────────────
-export function parseCsvFile(file) {
+function readFileAsText(file) {
   return new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      header: true,          // 第一行為欄位名稱
-      skipEmptyLines: true,
-      encoding: 'UTF-8',
-      complete: (result) => {
-        if (result.errors.length) {
-          console.warn('[api] PapaParse warnings:', result.errors)
-        }
-        console.log('[api] CSV fields:', result.meta.fields)
-        console.log(`[api] CSV rows: ${result.data.length}，first row:`, result.data[0])
-        resolve({ fields: result.meta.fields ?? [], data: result.data })
-      },
-      error: (err) => reject(new Error(`CSV 解析失敗：${err.message}`)),
-    })
+    const reader = new FileReader()
+    reader.onload  = e => resolve(e.target.result)
+    reader.onerror = () => reject(new Error('FileReader 讀取失敗'))
+    reader.readAsText(file, 'UTF-8')
   })
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 回應格式標準化
-// 後端可能回傳多種 schema，統一映射到 { risk_level, reason, ...原始欄位 }
+// 工具：Retry 包裝器（網路波動時重試一次，HTTP 錯誤不重試）
+// ─────────────────────────────────────────────────────────────────
+async function withRetry(fn, log, maxRetries = 1) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      // 有 HTTP 回應的錯誤（4xx / 5xx）直接拋出，不重試
+      if (err.response) throw err
+
+      // 網路層錯誤（斷線、CORS、timeout）才重試
+      if (attempt < maxRetries) {
+        log('warn', `網路錯誤，3 秒後自動重試（第 ${attempt + 1} 次）…`)
+        await new Promise(r => setTimeout(r, 3000))
+      } else {
+        throw err
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 回應標準化
+// 後端格式：{ "predictions": [{ user_id, ai_prediction, confidence }] }
+// ai_prediction: 1 → RED（高風險），0 → BLUE（低風險）
 // ─────────────────────────────────────────────────────────────────
 function normalizeItem(item, idx) {
   console.log(`[api] raw[${idx}]:`, item)
 
-  let risk_level = 'BLUE'
-  const reason = item.reason ?? item.explanation ?? item.message ?? ''
+  let risk_level
 
-  if (item.risk_level) {
-    // 後端直接給字串：RED / YELLOW / BLUE / GREEN
+  // ── 優先使用 ai_prediction（本次後端格式）────────────────────
+  if (item.ai_prediction !== undefined) {
+    risk_level = Number(item.ai_prediction) === 1 ? 'RED' : 'BLUE'
+  }
+  // ── 相容舊格式 risk_level 字串 ────────────────────────────────
+  else if (item.risk_level) {
     risk_level = String(item.risk_level).toUpperCase()
-  } else if (item.label !== undefined) {
-    // XGBoost 數值 label
-    const label      = Number(item.label)
-    const confidence = Number(item.confidence ?? item.score ?? item.probability ?? 0)
-    if (label === 1)         risk_level = 'RED'
-    else if (confidence >= 0.4) risk_level = 'YELLOW'
-    else                     risk_level = 'BLUE'
-  } else if (item.prediction) {
-    const p = String(item.prediction).toLowerCase()
-    if (p.includes('fake') || p.includes('disinfo')) risk_level = 'RED'
-    else if (p.includes('uncertain') || p.includes('suspicious')) risk_level = 'YELLOW'
-    else risk_level = 'BLUE'
+  }
+  // ── 相容 label 數值（XGBoost 慣例） ──────────────────────────
+  else if (item.label !== undefined) {
+    risk_level = Number(item.label) === 1 ? 'RED' : 'BLUE'
+  }
+  else {
+    risk_level = 'BLUE'
   }
 
-  return { ...item, risk_level, reason: reason || '—' }
+  const reason = item.reason ?? item.explanation ?? '—'
+
+  return { ...item, risk_level, reason }
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 主要匯出：解析 CSV → POST → 標準化結果
+// 主要匯出：讀取 CSV → POST（text/csv）→ 標準化結果
 // ─────────────────────────────────────────────────────────────────
 
 /**
  * @param {File}     file       使用者上傳的 .csv 文件
  * @param {Function} onProgress 進度回呼 (0–100)
- * @param {Function} onLog      日誌回呼 ({ level: 'info'|'warn'|'error'|'success', message: string })
+ * @param {Function} onLog      日誌回呼 ({ level, message })
  * @returns {Promise<Array>}    標準化後的分析結果
  */
 export async function analyzeFile(file, onProgress, onLog) {
@@ -93,68 +103,53 @@ export async function analyzeFile(file, onProgress, onLog) {
 
   if (!API_URL) throw new Error('VITE_API_URL 未設定，請確認 .env 或 Amplify 環境變數')
 
-  // ── Step 1: PapaParse 解析 CSV ───────────────────────────────
+  // ── Step 1: 讀取原始 CSV 文字 ─────────────────────────────────
   log('info', `讀取文件：${file.name}`)
   onProgress?.(5)
 
-  const { fields, data: records } = await parseCsvFile(file)
-  log('info', `CSV 解析完成：${records.length} 筆 × ${fields.length} 欄`)
-  onProgress?.(15)
+  const csvText = await readFileAsText(file)
 
-  // ── Step 2: 封裝 Payload ─────────────────────────────────────
-  const payload = {
-    session_id: crypto.randomUUID(),
-    timestamp:  new Date().toISOString(),
-    records,
-  }
-  console.log('[api] POST payload (preview):', {
-    session_id: payload.session_id,
-    timestamp:  payload.timestamp,
-    record_count: records.length,
-    first_record: records[0],
-  })
-  log('info', `Session ID：${payload.session_id}`)
-  onProgress?.(25)
+  // 計算行數（預覽用，不解析）
+  const rowCount = csvText.trim().split('\n').length - 1  // 扣掉 header
+  const firstLine = csvText.split('\n')[0]
+  console.log('[api] CSV header:', firstLine)
+  console.log(`[api] CSV rows: ${rowCount}`)
 
-  // ── Step 3: POST 至 Lambda ───────────────────────────────────
-  log('info', `資料上傳成功，送往 ${API_URL}`)
+  log('info', `CSV 讀取完成：${rowCount} 筆資料`)
+  onProgress?.(20)
 
-  // ── CORS 預檢：先送 OPTIONS，確認後端有正確回應 ────────────────
-  try {
-    await axios.options(API_URL, {
-      headers: {
-        'Access-Control-Request-Method': 'POST',
-        'Access-Control-Request-Headers': 'content-type',
-      },
-      timeout: 10_000,
-    })
-    log('info', 'CORS 預檢通過 ✅')
-  } catch (preflightErr) {
-    // OPTIONS 失敗通常就是 CORS 未設定
-    console.warn('[api] OPTIONS preflight failed:', preflightErr.message)
-    log('warn', 'CORS 預檢失敗，嘗試直接 POST（若失敗請修後端 CORS 設定）')
-  }
+  // ── Step 2: POST（Content-Type: text/csv）─────────────────────
+  // 後端以 csv.DictReader 讀取，需要接收純 CSV 文字
+  log('info', '正在送出 CSV 至 Lambda（text/csv）…')
 
   let response
   try {
-    response = await axios.post(API_URL, payload, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: TIMEOUT_MS,
-    })
+    response = await withRetry(
+      () => axios.post(API_URL, csvText, {
+        headers: { 'Content-Type': 'text/csv' },
+        timeout: TIMEOUT_MS,
+      }),
+      log,
+    )
   } catch (err) {
-    const status = err.response?.status
-    console.error('[api] HTTP error:', status, err.response?.data ?? err.message)
+    const status  = err.response?.status
+    const detail  = err.response?.data?.error   // Lambda 拋出的具體錯誤
+    const message = err.response?.data?.message
+
+    // ── 500：印出後端拋出的 error 欄位（SageMaker 崩潰 / CSV 格式問題）
+    if (status === 500) {
+      console.error('[api] 500 error.response.data:', err.response.data)
+      const backendError = detail ?? message ?? JSON.stringify(err.response.data)
+      log('error', `後端錯誤 (500)：${backendError}`)
+      throw new Error(`Lambda 內部錯誤 (500)：${backendError}`)
+    }
 
     if (status === 403)
       throw new Error('存取被拒 (403)：請確認 Lambda Function URL 的 CORS 與授權設定')
     if (status === 429)
-      throw new Error('請求頻率超限 (429)：Bedrock 1 RPS 限制，請等待 30 秒後再試')
+      throw new Error('請求頻率超限 (429)：請等待 30 秒後再試')
     if (status === 504 || err.code === 'ECONNABORTED')
-      throw new Error(
-        '偵辦超時，這可能是因為數據量較大或 AI 思考較久，' +
-        '請確認 S3 是否已產出結果。'
-      )
-    // Network Error 在 CORS 失敗時觸發（瀏覽器不讓請求送出）
+      throw new Error('偵辦超時，這可能是因為數據量較大或 AI 思考較久，請確認 S3 是否已產出結果。')
     if (!err.response && err.message?.includes('Network Error'))
       throw new Error(
         'CORS 錯誤：瀏覽器封鎖了此請求。\n' +
@@ -162,24 +157,26 @@ export async function analyzeFile(file, onProgress, onLog) {
         '並確認 Allow origins 設為 * 或你的網站網址。'
       )
 
-    throw new Error(err.response?.data?.message ?? err.message ?? '未知 API 錯誤')
+    throw new Error(message ?? err.message ?? '未知 API 錯誤')
   }
 
-  // ── Step 4: 標準化回應 ───────────────────────────────────────
+  // ── Step 3: 解析回應 ──────────────────────────────────────────
   onProgress?.(90)
   const raw = response.data
   console.log('[api] === RAW RESPONSE ===', raw)
 
+  // 支援 { predictions: [...] }（本次後端格式）及其他常見格式
   let rawList
-  if (Array.isArray(raw))               rawList = raw
+  if (Array.isArray(raw?.predictions))  rawList = raw.predictions
+  else if (Array.isArray(raw))          rawList = raw
   else if (Array.isArray(raw?.results)) rawList = raw.results
   else if (Array.isArray(raw?.data))    rawList = raw.data
   else {
-    console.warn('[api] Unexpected shape:', raw)
+    console.warn('[api] Unexpected response shape:', raw)
     throw new Error('後端回傳格式無法識別，請開啟 DevTools > Console 查看 RAW RESPONSE')
   }
 
-  log('info', `收到 ${rawList.length} 筆原始結果，標準化中…`)
+  log('info', `收到 ${rawList.length} 筆結果，標準化中…`)
   const normalized = rawList.map(normalizeItem)
   onProgress?.(100)
 
