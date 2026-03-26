@@ -111,7 +111,7 @@ export async function analyzeFile(file, onProgress, onLog) {
   try {
     response = await withRetry(
       () => axios.post(API_URL, csvText, {
-        headers: { 'Content-Type': 'text/csv' },
+        headers: { 'Content-Type': 'text/plain' },
         timeout: TIMEOUT_MS,
       }),
     )
