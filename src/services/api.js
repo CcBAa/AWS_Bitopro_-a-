@@ -35,22 +35,8 @@ function readFileAsText(file) {
 // ─────────────────────────────────────────────────────────────────
 // 工具：Retry 包裝器（網路波動時重試一次，HTTP 錯誤不重試）
 // ─────────────────────────────────────────────────────────────────
-async function withRetry(fn, log, maxRetries = 1) {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn()
-    } catch (err) {
-      // 有 HTTP 回應的錯誤（4xx / 5xx）直接拋出，不重試
-      if (err.response) throw err
-
-      // 網路層錯誤（斷線、CORS、timeout）才重試
-      if (attempt < maxRetries) {
-        log('warn', `網路錯誤，立即重試（第 ${attempt + 1} 次）…`)
-      } else {
-        throw err
-      }
-    }
-  }
+async function withRetry(fn) {
+  return await fn()
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -128,7 +114,6 @@ export async function analyzeFile(file, onProgress, onLog) {
         headers: { 'Content-Type': 'text/csv' },
         timeout: TIMEOUT_MS,
       }),
-      log,
     )
   } catch (err) {
     const status  = err.response?.status
