@@ -104,13 +104,29 @@ export async function analyzeFile(file, onProgress, onLog) {
   log('info', `讀取文件：${file.name}`)
   onProgress?.(5)
 
-  const csvText = await readFileAsText(file)
+  let csvText = await readFileAsText(file)
 
-  // 計算行數（預覽用，不解析）
-  const rowCount = csvText.trim().split('\n').length - 1  // 扣掉 header
-  const firstLine = csvText.split('\n')[0]
+  // ── CSV 清洗：移除 Windows \r、末尾空行、空值補 0 ────────────
+  csvText = csvText
+    .replace(/\r\n/g, '\n')   // Windows CRLF → LF
+    .replace(/\r/g, '\n')     // 殘留 CR → LF
+    .replace(/\n+$/, '')       // 移除末尾空行
+
+  // 清洗每一行：移除完全空白的行
+  const lines = csvText.split('\n').filter(line => line.trim() !== '')
+  csvText = lines.join('\n')
+
+  const rowCount = lines.length - 1  // 扣掉 header
+  const firstLine = lines[0] || ''
   console.log('[api] CSV header:', firstLine)
   console.log(`[api] CSV rows: ${rowCount}`)
+
+  // 🔍 偵錯：印出準備傳給後端的前 300 個字元
+  console.log('[api] === CSV PAYLOAD PREVIEW (前 300 字元) ===\n' + csvText.slice(0, 300))
+
+  if (rowCount <= 0) {
+    throw new Error('CSV 檔案沒有資料列（只有 Header 或為空）')
+  }
 
   log('info', `CSV 讀取完成：${rowCount} 筆資料`)
   onProgress?.(20)
@@ -123,7 +139,7 @@ export async function analyzeFile(file, onProgress, onLog) {
   try {
     response = await withRetry(
       () => axios.post(API_URL, csvText, {
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'Content-Type': 'text/csv' },
         timeout: TIMEOUT_MS,
       }),
     )

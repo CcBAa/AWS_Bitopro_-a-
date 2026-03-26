@@ -78,13 +78,23 @@ def lambda_handler(event, context):
 
     try:
         # ══════════════════════════════════════════════════════════
-        # 2️⃣  讀取 Body — 空值防禦
+        # 2️⃣  讀取 Body — 空值防禦 + Base64 解碼（Function URL 可能編碼）
         # ══════════════════════════════════════════════════════════
         csv_data = event.get('body', '')
+
+        # Lambda Function URL 可能對 body 做 Base64 編碼
+        if event.get('isBase64Encoded', False) and csv_data:
+            import base64
+            csv_data = base64.b64decode(csv_data).decode('utf-8')
+
         if not csv_data or not csv_data.strip():
             return build_response(400, {
                 'error': 'Request body 為空，請上傳有效的 CSV 資料。'
             })
+
+        # 🔍 偵錯：印出收到的 CSV 前 200 字元到 CloudWatch
+        print(f"[DEBUG] CSV 前 200 字元: {csv_data[:200]}")
+        print(f"[DEBUG] CSV 總長度: {len(csv_data)}")
 
         reader = csv.DictReader(io.StringIO(csv_data))
 
