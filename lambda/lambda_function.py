@@ -144,11 +144,20 @@ def lambda_handler(event, context):
             prob = probs[i] if i < len(probs) else 0.0
             is_high_risk = prob >= RISK_THRESHOLD
 
+            # 根據風險等級產生 reason 說明
+            if is_high_risk:
+                reason = f"風險分數 {prob*100:.1f}% 超過門檻 {RISK_THRESHOLD*100:.0f}%，疑似洗錢或操縱行為"
+            elif prob >= 0.5:
+                reason = f"風險分數 {prob*100:.1f}%，存在可疑交易模式，建議持續監控"
+            else:
+                reason = f"風險分數 {prob*100:.1f}%，交易模式正常"
+
             results.append({
                 "user_id": uid,
                 "ai_prediction": 1 if prob >= 0.5 else 0,
                 "confidence": round(prob, 4),
                 "is_extreme_risk": is_high_risk,
+                "reason": reason,
                 "risk_score": round(prob, 4),      # 用於排序取 Top-3
                 "sar_report": None,
             })
