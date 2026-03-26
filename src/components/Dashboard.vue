@@ -248,6 +248,19 @@
               <option value="YELLOW">中風險</option>
               <option value="BLUE">低風險</option>
             </select>
+
+            <!-- Download CSV Button -->
+            <button
+              class="btn-download"
+              :class="{ 'btn-download--flash': downloadFlash }"
+              aria-label="下載 CSV 結果"
+              @click="downloadCsv"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              匯出 CSV
+            </button>
           </div>
         </div>
 
@@ -544,6 +557,31 @@ function str(v) { return v == null ? '—' : String(v) }
 function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s }
 
 watch(errorMsg, v => { if (v) setTimeout(() => { errorMsg.value = '' }, 10000) })
+
+// ── Download CSV ───────────────────────────────────────────────
+const downloadFlash = ref(false)
+
+function downloadCsv() {
+  const lines = ['user_id,status']
+  for (const row of results.value) {
+    const userId = row.user_id ?? ''
+    const status = row.risk_level === 'RED' ? 1 : 0
+    lines.push(`${userId},${status}`)
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `disinfo_result_${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+
+  // flash feedback
+  downloadFlash.value = true
+  setTimeout(() => { downloadFlash.value = false }, 600)
+}
 </script>
 
 <style scoped>
@@ -1083,6 +1121,40 @@ watch(errorMsg, v => { if (v) setTimeout(() => { errorMsg.value = '' }, 10000) }
 }
 .results-count strong { color: var(--cyan); }
 
+/* ── Download Button ────────────────────────────────────── */
+.btn-download {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.06);
+  color: var(--cyan);
+  font-family: 'Fira Code', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+  white-space: nowrap;
+}
+.btn-download:hover {
+  border-color: rgba(56, 189, 248, 0.65);
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
+}
+.btn-download:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+.btn-download--flash {
+  border-color: var(--green);
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--green);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.25);
+}
+
 /* ── Error Toast ────────────────────────────────────────── */
 .error-toast {
   position: fixed;
@@ -1119,4 +1191,22 @@ watch(errorMsg, v => { if (v) setTimeout(() => { errorMsg.value = '' }, 10000) }
 /* ── Toast Transition ───────────────────────────────────── */
 .toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(16px); }
+
+/* ── Reduced Motion (ui-ux-pro-max UX guideline) ────────── */
+@media (prefers-reduced-motion: reduce) {
+  .progress-shimmer,
+  .ai-spinner,
+  .chip-warn,
+  .chip-err,
+  .live-badge,
+  .animate-pulse,
+  .btn-active:hover,
+  .btn-download:hover {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  .toast-enter-active,
+  .toast-leave-active { transition: opacity .1s; }
+}
 </style>
