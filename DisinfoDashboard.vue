@@ -56,15 +56,14 @@
         </div>
 
         <!-- Progress Bar -->
-        <div v-if="isProcessing || uploadProgress > 0" class="progress-section">
+        <div v-if="isProcessing" class="progress-section">
           <div class="progress-header">
             <span class="progress-label">{{ progressLabel }}</span>
             <span class="progress-pct">{{ Math.round(uploadProgress) }}%</span>
           </div>
           <div class="progress-bar-track">
             <div
-              class="progress-bar-fill"
-              :class="{ 'progress-bar-fill--pulse': isPolling }"
+              class="progress-bar-fill progress-bar-fill--pulse"
               :style="{ width: uploadProgress + '%' }"
             ></div>
           </div>
@@ -91,7 +90,7 @@
         <section class="log-section card">
           <h2 class="section-title">
             <span class="section-icon">🖥️</span> 偵查日誌
-            <span v-if="isPolling" class="live-badge">LIVE</span>
+            <span v-if="isProcessing" class="live-badge">LIVE</span>
           </h2>
           <div ref="logContainer" class="log-window">
             <div v-for="(entry, idx) in logs" :key="idx" class="log-entry" :class="'log-entry--' + entry.level">
@@ -99,7 +98,7 @@
               <span class="log-level-tag">{{ entry.level.toUpperCase() }}</span>
               <span class="log-msg">{{ entry.message }}</span>
             </div>
-            <div v-if="isPolling" class="log-cursor">▌</div>
+            <div v-if="isProcessing" class="log-cursor">▌</div>
           </div>
         </section>
 
@@ -113,17 +112,17 @@
               <p class="stat-value">{{ results.length }}</p>
               <p class="stat-label">總筆數</p>
             </div>
-            <div class="stat-card stat-card--red">
-              <p class="stat-value">{{ riskCounts.RED }}</p>
-              <p class="stat-label">高風險 🔴</p>
+            <div class="stat-card stat-card--critical">
+              <p class="stat-value">{{ riskCounts.CRITICAL }}</p>
+              <p class="stat-label">極高風險 🔴</p>
             </div>
-            <div class="stat-card stat-card--yellow">
-              <p class="stat-value">{{ riskCounts.YELLOW }}</p>
-              <p class="stat-label">中風險 🟡</p>
+            <div class="stat-card stat-card--suspicious">
+              <p class="stat-value">{{ riskCounts.SUSPICIOUS }}</p>
+              <p class="stat-label">可疑交易 🟠</p>
             </div>
-            <div class="stat-card stat-card--blue">
-              <p class="stat-value">{{ riskCounts.BLUE }}</p>
-              <p class="stat-label">低風險 🔵</p>
+            <div class="stat-card stat-card--normal">
+              <p class="stat-value">{{ riskCounts.NORMAL }}</p>
+              <p class="stat-label">正常 🔵</p>
             </div>
           </div>
         </section>
@@ -144,9 +143,9 @@
             />
             <select v-model="filterRisk" class="filter-select">
               <option value="">全部風險</option>
-              <option value="RED">高風險 🔴</option>
-              <option value="YELLOW">中風險 🟡</option>
-              <option value="BLUE">低風險 🔵</option>
+              <option value="CRITICAL">極高風險 🔴</option>
+              <option value="SUSPICIOUS">可疑交易 🟠</option>
+              <option value="NORMAL">正常 🔵</option>
             </select>
           </div>
         </div>
@@ -168,6 +167,7 @@
                   </span>
                 </th>
                 <th class="th-risk">風險等級</th>
+                <th class="th-report">AI 報告</th>
               </tr>
             </thead>
             <tbody>
@@ -188,9 +188,20 @@
                     {{ riskLabel(row.risk_level) }}
                   </span>
                 </td>
+                <td class="td-report">
+                  <button
+                    v-if="row.sar_report"
+                    class="btn-report"
+                    :class="{ 'btn-report--critical': row.is_extreme_risk }"
+                    @click="openModal(row)"
+                  >
+                    🔍 查看報告
+                  </button>
+                  <span v-else class="no-report">—</span>
+                </td>
               </tr>
               <tr v-if="filteredResults.length === 0">
-                <td :colspan="tableColumns.length + 2" class="td-empty">無符合條件的結果</td>
+                <td :colspan="tableColumns.length + 3" class="td-empty">無符合條件的結果</td>
               </tr>
             </tbody>
           </table>
@@ -199,24 +210,65 @@
       </section>
     </main>
 
-    <!-- Error Toast -->
-    <Transition name="toast">
-      <div v-if="errorMessage" class="error-toast">
-        <span>⚠️ {{ errorMessage }}</span>
-        <button class="toast-close" @click="errorMessage = ''">✕</button>
-      </div>
-    </Transition>
+    <!-- SAR Report Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="modalRow" class="modal-overlay" @click.self="closeModal">
+          <div class="modal-box">
+            <!-- Blinking extreme risk warning -->
+            <div v-if="modalRow.is_extreme_risk" class="modal-extreme-warning">
+              <span class="warning-blink">⚠</span>
+              系統判定：極高洗錢/操縱風險
+              <span class="warning-blink">⚠</span>
+            </div>
+
+            <div class="modal-header">
+              <div class="modal-title-group">
+                <h3 class="modal-title">AI 偵查報告</h3>
+                <span class="modal-badge" :class="'modal-badge--' + (modalRow.risk_level || '').toLowerCase()">
+                  {{ riskLabel(modalRow.risk_level) }}
+                </span>
+              </div>
+              <button class="modal-close" @click="closeModal">✕</button>
+            </div>
+
+            <div class="modal-body">
+              <div class="markdown-content" v-html="renderedReport"></div>
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn-modal-close" @click="closeModal">關閉報告</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Toast Stack -->
+    <div class="toast-stack">
+      <TransitionGroup name="toast">
+        <div
+          v-for="t in toasts"
+          :key="t.id"
+          class="toast-item"
+          :class="'toast-item--' + t.type"
+        >
+          <span class="toast-icon">{{ t.type === 'warning' ? '🚨' : '⚠️' }}</span>
+          <span class="toast-msg">{{ t.message }}</span>
+          <button class="toast-close" @click="dismissToast(t.id)">✕</button>
+        </div>
+      </TransitionGroup>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue'
 import axios from 'axios'
+import { marked } from 'marked'
 
 // ── Configuration ──────────────────────────────────────────────
-const API_URL = 'https://your-api-gateway-url.execute-api.ap-northeast-1.amazonaws.com/prod'
-const POLL_INTERVAL_MS = 2000   // 2 s — respects Bedrock 1 RPS limit
-const MAX_POLL_RETRIES = 150    // 5 minutes max
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 // ── Reactive State ─────────────────────────────────────────────
 const fileInput    = ref(null)
@@ -225,41 +277,45 @@ const logContainer = ref(null)
 const selectedFile   = ref(null)
 const isDragging     = ref(false)
 const isProcessing   = ref(false)
-const isPolling      = ref(false)
 const uploadProgress = ref(0)
-const progressLabel  = ref('上傳中…')
+const progressLabel  = ref('分析中…')
 const results        = ref([])
 const logs           = ref([])
-const errorMessage   = ref('')
 const filterText     = ref('')
 const filterRisk     = ref('')
 const sortKey        = ref('')
 const sortDir        = ref('asc')
 
-let pollTimer  = null
-let pollCount  = 0
-let jobId      = null
+// Modal
+const modalRow = ref(null)
+
+// Toast system
+const toasts = ref([])
+let toastIdCounter = 0
+
+let progressTimer = null
 
 // ── System Status ──────────────────────────────────────────────
 const systemStatus = computed(() => {
-  if (isPolling.value)   return { text: 'ANALYZING',  class: 'status--analyzing' }
-  if (isProcessing.value) return { text: 'UPLOADING', class: 'status--uploading' }
-  if (results.value.length > 0) return { text: 'COMPLETE', class: 'status--complete' }
+  if (isProcessing.value)        return { text: 'ANALYZING',  class: 'status--analyzing' }
+  if (results.value.length > 0)  return { text: 'COMPLETE',   class: 'status--complete' }
   return { text: 'READY', class: 'status--ready' }
 })
 
 // ── Risk Counts ────────────────────────────────────────────────
 const riskCounts = computed(() => ({
-  RED:    results.value.filter(r => r.risk_level === 'RED').length,
-  YELLOW: results.value.filter(r => r.risk_level === 'YELLOW').length,
-  BLUE:   results.value.filter(r => r.risk_level === 'BLUE').length,
+  CRITICAL:   results.value.filter(r => r.risk_level === 'CRITICAL').length,
+  SUSPICIOUS: results.value.filter(r => r.risk_level === 'SUSPICIOUS').length,
+  NORMAL:     results.value.filter(r => r.risk_level === 'NORMAL').length,
 }))
 
-// ── Table Columns (derived from first result row, excluding risk_level) ──
+// ── Table Columns ──────────────────────────────────────────────
+const EXCLUDED_COLS = new Set(['risk_level', 'sar_report', 'ai_prediction', 'is_extreme_risk'])
+
 const tableColumns = computed(() => {
   if (!results.value.length) return []
   return Object.keys(results.value[0])
-    .filter(k => k !== 'risk_level')
+    .filter(k => !EXCLUDED_COLS.has(k))
     .map(k => ({ key: k, label: k.replace(/_/g, ' ').toUpperCase() }))
 })
 
@@ -284,6 +340,33 @@ const filteredResults = computed(() => {
   }
   return list
 })
+
+// ── Modal ──────────────────────────────────────────────────────
+const renderedReport = computed(() => {
+  if (!modalRow.value?.sar_report) return ''
+  return marked.parse(modalRow.value.sar_report)
+})
+
+function openModal(row) {
+  modalRow.value = row
+  document.body.style.overflow = 'hidden'
+}
+
+function closeModal() {
+  modalRow.value = null
+  document.body.style.overflow = ''
+}
+
+// ── Toast System ───────────────────────────────────────────────
+function pushToast(message, type = 'error', duration = 6000) {
+  const id = ++toastIdCounter
+  toasts.value.push({ id, message, type })
+  setTimeout(() => dismissToast(id), duration)
+}
+
+function dismissToast(id) {
+  toasts.value = toasts.value.filter(t => t.id !== id)
+}
 
 // ── File Handling ──────────────────────────────────────────────
 function onFileChange(e) {
@@ -317,95 +400,69 @@ async function startAnalysis() {
   if (!selectedFile.value || isProcessing.value) return
 
   isProcessing.value = true
-  uploadProgress.value = 0
+  uploadProgress.value = 5
   results.value = []
-  errorMessage.value = ''
-  addLog('info', '開始上傳文件至後端…')
+  progressLabel.value = '上傳至 AI 分析引擎…'
+  addLog('info', '讀取 CSV 文件內容…')
+
+  // Simulate progress animation while awaiting response
+  progressTimer = setInterval(() => {
+    if (uploadProgress.value < 85) {
+      uploadProgress.value = Math.min(85, uploadProgress.value + Math.random() * 4)
+    }
+  }, 400)
 
   try {
-    const formData = new FormData()
-    formData.append('file', selectedFile.value)
+    const csvText = await selectedFile.value.text()
+    addLog('info', `POST → ${API_URL}  (Content-Type: text/csv)`)
 
-    // Step 1 — Upload CSV
-    progressLabel.value = '上傳中…'
-    const uploadRes = await axios.post(`${API_URL}/upload`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress(e) {
-        uploadProgress.value = Math.round((e.loaded / e.total) * 50) // 0–50 %
-      },
+    const res = await axios.post(API_URL, csvText, {
+      headers: { 'Content-Type': 'text/csv' },
+      timeout: 120_000,
     })
 
-    jobId = uploadRes.data?.job_id
-    if (!jobId) throw new Error('後端未回傳 job_id')
+    const predictions = res.data?.predictions
+    if (!Array.isArray(predictions)) {
+      throw new Error(`後端回傳格式異常：缺少 predictions 陣列`)
+    }
 
-    addLog('info', `上傳成功，任務 ID：${jobId}`)
-    addLog('info', 'Bedrock 分析引擎啟動，輪詢狀態中…')
+    // Map predictions → enrich with risk_level
+    results.value = predictions.map(p => ({
+      ...p,
+      risk_level: classifyRisk(p),
+    }))
 
-    // Step 2 — Poll for completion
-    progressLabel.value = 'AI 分析中…'
-    await pollForResult(jobId)
+    uploadProgress.value = 100
+    progressLabel.value = '分析完成！'
+    addLog('success', `分析完成，共 ${results.value.length} 筆結果`)
+    addLog('success',
+      `CRITICAL：${riskCounts.value.CRITICAL} ／ SUSPICIOUS：${riskCounts.value.SUSPICIOUS} ／ NORMAL：${riskCounts.value.NORMAL}`)
+
+    // Trigger extreme risk toast if any
+    const extremeCount = riskCounts.value.CRITICAL
+    if (extremeCount > 0) {
+      pushToast(`偵測到 ${extremeCount} 筆極高風險交易，請立即查核`, 'warning', 10000)
+      addLog('warn', `[!] 偵測到 ${extremeCount} 筆極高風險交易`)
+    }
 
   } catch (err) {
     handleError(err)
   } finally {
+    clearInterval(progressTimer)
     isProcessing.value = false
-    isPolling.value = false
   }
 }
 
-// ── Polling Mechanism ──────────────────────────────────────────
-function pollForResult(id) {
-  pollCount = 0
-  return new Promise((resolve, reject) => {
-    isPolling.value = true
-
-    const tick = async () => {
-      if (pollCount >= MAX_POLL_RETRIES) {
-        reject(new Error('分析逾時，請稍後再試'))
-        return
-      }
-      pollCount++
-
-      try {
-        const res = await axios.get(`${API_URL}/status/${id}`)
-        const { status, progress, current_item, results: data } = res.data
-
-        // Update fake progress (50 % → 99 % during polling)
-        uploadProgress.value = Math.min(99, 50 + Math.round((pollCount / MAX_POLL_RETRIES) * 49))
-
-        if (current_item) {
-          addLog('info', `[${pollCount}] 正在分析：「${truncate(current_item, 60)}」`)
-        }
-
-        if (status === 'completed') {
-          uploadProgress.value = 100
-          progressLabel.value = '分析完成！'
-          results.value = Array.isArray(data) ? data : []
-          addLog('success', `分析完成，共 ${results.value.length} 筆結果`)
-          addLog('success', `高風險：${riskCounts.value.RED} ／ 中風險：${riskCounts.value.YELLOW} ／ 低風險：${riskCounts.value.BLUE}`)
-          isPolling.value = false
-          resolve()
-        } else if (status === 'failed') {
-          reject(new Error(res.data.message || '後端分析失敗'))
-        } else {
-          // Still processing — schedule next poll
-          pollTimer = setTimeout(tick, POLL_INTERVAL_MS)
-        }
-      } catch (err) {
-        // Network errors during polling — retry up to limit
-        addLog('warn', `輪詢失敗（第 ${pollCount} 次），重試中…`)
-        pollTimer = setTimeout(tick, POLL_INTERVAL_MS)
-      }
-    }
-
-    pollTimer = setTimeout(tick, POLL_INTERVAL_MS)
-  })
+// ── Risk Classification ────────────────────────────────────────
+function classifyRisk(p) {
+  if (p.ai_prediction === 1 && p.is_extreme_risk === true) return 'CRITICAL'
+  if (p.ai_prediction === 1) return 'SUSPICIOUS'
+  return 'NORMAL'
 }
 
 // ── Helpers ────────────────────────────────────────────────────
 function addLog(level, message) {
-  const now = new Date()
-  const time = now.toTimeString().slice(0, 8)
+  const time = new Date().toTimeString().slice(0, 8)
   logs.value.push({ time, level, message })
   nextTick(() => {
     if (logContainer.value) {
@@ -415,22 +472,26 @@ function addLog(level, message) {
 }
 
 function handleError(err) {
-  const msg = err.response?.data?.message || err.message || '未知錯誤'
-  errorMessage.value = msg
+  let msg = err.response?.data?.message || err.message || '未知錯誤'
+
+  if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+    msg = 'API 請求逾時（120s），請確認後端服務狀態'
+  } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+    msg = '網路錯誤 / CORS 阻擋：請確認 API 端點與 CORS 設定'
+  }
+
   addLog('error', `錯誤：${msg}`)
+  pushToast(msg, 'error')
   uploadProgress.value = 0
-  clearTimeout(pollTimer)
-  isPolling.value = false
-  setTimeout(() => { errorMessage.value = '' }, 6000)
 }
 
 function riskRowClass(level) {
-  const map = { RED: 'row--red', YELLOW: 'row--yellow', BLUE: 'row--blue' }
+  const map = { CRITICAL: 'row--critical', SUSPICIOUS: 'row--suspicious', NORMAL: 'row--normal' }
   return map[level] || ''
 }
 
 function riskLabel(level) {
-  const map = { RED: '🔴 高風險', YELLOW: '🟡 中風險', BLUE: '🔵 低風險' }
+  const map = { CRITICAL: '🔴 CRITICAL', SUSPICIOUS: '🟠 SUSPICIOUS', NORMAL: '🔵 NORMAL' }
   return map[level] || level || '—'
 }
 
@@ -452,11 +513,6 @@ function formatFileSize(bytes) {
 function truncate(str, len) {
   return str.length > len ? str.slice(0, len) + '…' : str
 }
-
-// Auto-dismiss error
-watch(errorMessage, val => {
-  if (val) setTimeout(() => { errorMessage.value = '' }, 6000)
-})
 </script>
 
 <style scoped>
@@ -470,6 +526,7 @@ watch(errorMessage, val => {
   --c-accent:    #58a6ff;
   --c-green:     #3fb950;
   --c-red:       #f85149;
+  --c-orange:    #e07b39;
   --c-yellow:    #d29922;
   --radius:      12px;
 }
@@ -541,7 +598,6 @@ watch(errorMessage, val => {
   background: currentColor;
 }
 .status--ready     { color: #8b949e;  border-color: #30363d;  background: rgba(139,148,158,.1); }
-.status--uploading { color: #58a6ff;  border-color: #58a6ff4d; background: rgba(88,166,255,.08); }
 .status--analyzing { color: #d29922;  border-color: #d2992244; background: rgba(210,153,34,.08);
   animation: pulse-badge 1.4s ease-in-out infinite; }
 .status--complete  { color: #3fb950;  border-color: #3fb95044; background: rgba(63,185,80,.08); }
@@ -612,7 +668,7 @@ watch(errorMessage, val => {
 .file-size { font-size: 0.78rem; color: #8b949e; margin-top: 2px; }
 .btn-remove {
   background: none;
-  border: 1px solid #f8514944;
+  border: 1px solid rgba(248,81,73,.4);
   color: #f85149;
   border-radius: 6px;
   padding: 4px 8px;
@@ -719,15 +775,15 @@ watch(errorMessage, val => {
   font-weight: 700;
   min-width: 52px;
 }
-.log-entry--info  .log-level-tag { color: #58a6ff; }
-.log-entry--warn  .log-level-tag { color: #d29922; }
-.log-entry--error .log-level-tag { color: #f85149; }
+.log-entry--info    .log-level-tag { color: #58a6ff; }
+.log-entry--warn    .log-level-tag { color: #d29922; }
+.log-entry--error   .log-level-tag { color: #f85149; }
 .log-entry--success .log-level-tag { color: #3fb950; }
 .log-msg { color: #adbac7; word-break: break-all; }
 .log-cursor { color: #58a6ff; animation: blink .8s step-end infinite; }
 @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
 
-/* ── Stats ─────────────────────────────────────────────── */
+/* ── Stats (three tiers) ───────────────────────────────── */
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -742,10 +798,10 @@ watch(errorMessage, val => {
 }
 .stat-value { font-size: 2rem; font-weight: 800; line-height: 1.1; }
 .stat-label { font-size: 0.75rem; color: #8b949e; margin-top: 4px; }
-.stat-card--total  .stat-value { color: #e6edf3; }
-.stat-card--red    .stat-value { color: #f85149; }
-.stat-card--yellow .stat-value { color: #d29922; }
-.stat-card--blue   .stat-value { color: #58a6ff; }
+.stat-card--total      .stat-value { color: #e6edf3; }
+.stat-card--critical   .stat-value { color: #f85149; }
+.stat-card--suspicious .stat-value { color: #e07b39; }
+.stat-card--normal     .stat-value { color: #58a6ff; }
 
 /* ── Results Table ─────────────────────────────────────── */
 .results-header {
@@ -777,7 +833,7 @@ watch(errorMessage, val => {
   font-size: 0.83rem;
 }
 .results-table thead { background: #21262d; }
-.th-index, .th-col, .th-risk {
+.th-index, .th-col, .th-risk, .th-report {
   padding: 10px 14px;
   text-align: left;
   color: #8b949e;
@@ -792,20 +848,21 @@ watch(errorMessage, val => {
 .th-col:hover { color: #58a6ff; }
 .sort-icon { margin-left: 4px; font-size: 0.65rem; }
 
-/* Row color coding — core requirement */
+/* Row color coding — three tiers */
 .result-row { border-bottom: 1px solid #21262d; transition: filter .15s; }
 .result-row:hover { filter: brightness(1.12); }
 
-.row--red    { background: rgba(248, 81, 73, 0.10); }
-.row--yellow { background: rgba(210, 153, 34, 0.10); }
-.row--blue   { background: rgba(88, 166, 255, 0.08); }
+.row--critical   { background: rgba(248, 81,  73, 0.12); }
+.row--suspicious { background: rgba(224, 123, 57, 0.10); }
+.row--normal     { background: rgba(88,  166, 255, 0.06); }
 
-.td-index { padding: 10px 14px; color: #8b949e; font-size: 0.75rem; white-space: nowrap; }
-.td-cell  { padding: 10px 14px; color: #e6edf3; max-width: 320px; }
+.td-index  { padding: 10px 14px; color: #8b949e; font-size: 0.75rem; white-space: nowrap; }
+.td-cell   { padding: 10px 14px; color: #e6edf3; max-width: 320px; }
 .cell-content { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.td-empty { padding: 24px; text-align: center; color: #8b949e; }
+.td-empty  { padding: 24px; text-align: center; color: #8b949e; }
+.td-risk   { padding: 10px 14px; white-space: nowrap; }
+.td-report { padding: 10px 14px; white-space: nowrap; }
 
-.td-risk { padding: 10px 14px; white-space: nowrap; }
 .risk-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -813,38 +870,290 @@ watch(errorMessage, val => {
   font-size: 0.78rem;
   font-weight: 600;
 }
-.risk-badge--red    { background: rgba(248,81,73,.2);   color: #f85149; border: 1px solid rgba(248,81,73,.4); }
-.risk-badge--yellow { background: rgba(210,153,34,.2);  color: #d29922; border: 1px solid rgba(210,153,34,.4); }
-.risk-badge--blue   { background: rgba(88,166,255,.15); color: #58a6ff; border: 1px solid rgba(88,166,255,.35); }
+.risk-badge--critical   { background: rgba(248,81,73,.2);   color: #f85149; border: 1px solid rgba(248,81,73,.4); }
+.risk-badge--suspicious { background: rgba(224,123,57,.2);  color: #e07b39; border: 1px solid rgba(224,123,57,.4); }
+.risk-badge--normal     { background: rgba(88,166,255,.15); color: #58a6ff; border: 1px solid rgba(88,166,255,.35); }
+
+/* ── Report Button ─────────────────────────────────────── */
+.btn-report {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(88,166,255,.4);
+  background: rgba(88,166,255,.08);
+  color: #58a6ff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn-report:hover { background: rgba(88,166,255,.18); }
+.btn-report--critical {
+  border-color: rgba(248,81,73,.5);
+  background: rgba(248,81,73,.1);
+  color: #f85149;
+}
+.btn-report--critical:hover { background: rgba(248,81,73,.2); }
+.no-report { color: #30363d; font-size: 0.78rem; }
 
 .results-count { font-size: 0.78rem; color: #8b949e; margin-top: 10px; text-align: right; }
 
-/* ── Error Toast ───────────────────────────────────────── */
-.error-toast {
+/* ── Modal ─────────────────────────────────────────────── */
+.modal-overlay {
   position: fixed;
-  bottom: 28px;
-  right: 28px;
-  background: #161b22;
-  border: 1px solid #f85149;
-  color: #f85149;
-  padding: 12px 16px;
-  border-radius: 10px;
-  font-size: 0.88rem;
+  inset: 0;
+  background: rgba(1, 4, 9, 0.80);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.5);
-  z-index: 999;
-  max-width: 420px;
+  justify-content: center;
+  z-index: 500;
+  padding: 20px;
 }
+
+.modal-box {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,.7);
+  overflow: hidden;
+}
+
+/* Extreme risk warning banner */
+.modal-extreme-warning {
+  background: linear-gradient(90deg, #450a0a, #7f1d1d, #450a0a);
+  background-size: 200% 100%;
+  animation: warning-sweep 2s linear infinite;
+  color: #fca5a5;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 10px 20px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(248,81,73,.4);
+}
+@keyframes warning-sweep {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.warning-blink {
+  display: inline-block;
+  animation: blink .6s step-end infinite;
+  margin: 0 6px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+.modal-title-group { display: flex; align-items: center; gap: 12px; }
+.modal-title { font-size: 1.05rem; font-weight: 700; color: #e6edf3; }
+
+.modal-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.modal-badge--critical   { background: rgba(248,81,73,.2);   color: #f85149; border: 1px solid rgba(248,81,73,.4); }
+.modal-badge--suspicious { background: rgba(224,123,57,.2);  color: #e07b39; border: 1px solid rgba(224,123,57,.4); }
+.modal-badge--normal     { background: rgba(88,166,255,.15); color: #58a6ff; border: 1px solid rgba(88,166,255,.35); }
+
+.modal-close {
+  background: none;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  border-radius: 6px;
+  width: 32px; height: 32px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background .15s, color .15s;
+  flex-shrink: 0;
+}
+.modal-close:hover { background: rgba(248,81,73,.1); color: #f85149; border-color: rgba(248,81,73,.4); }
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  scroll-behavior: smooth;
+}
+.modal-body::-webkit-scrollbar { width: 4px; }
+.modal-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+
+/* Markdown content styles */
+.markdown-content {
+  color: #c9d1d9;
+  line-height: 1.75;
+  font-size: 0.9rem;
+}
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3) {
+  color: #e6edf3;
+  font-weight: 700;
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #21262d;
+}
+.markdown-content :deep(h1) { font-size: 1.2rem; }
+.markdown-content :deep(h2) { font-size: 1.05rem; }
+.markdown-content :deep(h3) { font-size: 0.95rem; border-bottom: none; }
+.markdown-content :deep(p)  { margin-bottom: 12px; }
+.markdown-content :deep(strong) { color: #f0f6fc; font-weight: 700; }
+.markdown-content :deep(em) { color: #d2a679; font-style: italic; }
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+.markdown-content :deep(li) { margin-bottom: 4px; }
+.markdown-content :deep(blockquote) {
+  border-left: 3px solid #58a6ff;
+  padding: 8px 16px;
+  margin: 12px 0;
+  background: rgba(88,166,255,.06);
+  border-radius: 0 6px 6px 0;
+  color: #8b949e;
+}
+.markdown-content :deep(code) {
+  background: #010409;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85em;
+  color: #79c0ff;
+}
+.markdown-content :deep(pre) {
+  background: #010409;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 14px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+.markdown-content :deep(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.markdown-content :deep(hr) {
+  border: none;
+  border-top: 1px solid #21262d;
+  margin: 20px 0;
+}
+.markdown-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}
+.markdown-content :deep(th) {
+  background: #21262d;
+  padding: 8px 12px;
+  text-align: left;
+  color: #8b949e;
+  font-weight: 600;
+  border-bottom: 1px solid #30363d;
+}
+.markdown-content :deep(td) {
+  padding: 8px 12px;
+  border-bottom: 1px solid #21262d;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #21262d;
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.btn-modal-close {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #e6edf3;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-modal-close:hover { background: #30363d; }
+
+/* Modal transition */
+.modal-enter-active, .modal-leave-active {
+  transition: opacity .2s ease, transform .2s ease;
+}
+.modal-enter-from, .modal-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+/* ── Toast Stack ───────────────────────────────────────── */
+.toast-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 600;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: all;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  max-width: 400px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  border: 1px solid;
+}
+.toast-item--error {
+  background: #161b22;
+  border-color: rgba(248,81,73,.5);
+  color: #f85149;
+}
+.toast-item--warning {
+  background: #1c1710;
+  border-color: rgba(224,123,57,.5);
+  color: #e07b39;
+}
+.toast-icon { flex-shrink: 0; }
+.toast-msg  { flex: 1; line-height: 1.4; }
 .toast-close {
   background: none;
   border: none;
-  color: #f85149;
+  color: currentColor;
   cursor: pointer;
   font-size: 0.9rem;
   flex-shrink: 0;
+  opacity: .7;
+  padding: 2px;
 }
-.toast-enter-active, .toast-leave-active { transition: opacity .3s, transform .3s; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+.toast-close:hover { opacity: 1; }
+
+/* TransitionGroup for toast stack */
+.toast-enter-active { transition: opacity .3s ease, transform .3s ease; }
+.toast-leave-active { transition: opacity .25s ease, transform .25s ease; }
+.toast-enter-from   { opacity: 0; transform: translateX(20px); }
+.toast-leave-to     { opacity: 0; transform: translateX(20px); }
+.toast-move         { transition: transform .3s ease; }
 </style>
