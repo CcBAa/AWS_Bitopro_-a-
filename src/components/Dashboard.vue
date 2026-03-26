@@ -1,99 +1,137 @@
 <template>
-  <div class="page-bg min-h-screen text-gray-100 pb-16 font-sans">
+  <div class="page-root">
 
     <!-- ══════════════════════════════════════════════════
-         HEADER
+         HEADER — HUD style
     ══════════════════════════════════════════════════ -->
-    <header class="sticky top-0 z-50 header-glass px-8 py-4">
-      <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <header class="hud-header">
+      <div class="header-inner">
 
+        <!-- Logo + Title -->
         <div class="flex items-center gap-4">
-          <div class="logo-icon-wrap">
-            <span class="text-xl">🔍</span>
+          <div class="shield-icon" aria-hidden="true">
+            <!-- Shield SVG (Heroicons) -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+              <path fill-rule="evenodd" d="M12.516 2.17a.75.75 0 0 0-1.032 0 11.209 11.209 0 0 1-7.877 3.08.75.75 0 0 0-.722.515A12.74 12.74 0 0 0 2.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 0 0 .374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 0 0-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08Z" clip-rule="evenodd" />
+            </svg>
           </div>
           <div>
-            <h1 class="text-xl font-bold gradient-text tracking-tight">去偽存真 · DisInfo Shield</h1>
-            <p class="text-xs text-gray-500 mt-0.5">AI-Powered Disinformation Detection System</p>
+            <h1 class="site-title">去偽存真 · DisInfo Shield</h1>
+            <p class="site-sub">AI-Powered Disinformation Detection System</p>
           </div>
         </div>
 
+        <!-- Status Badges -->
         <div class="flex items-center gap-3">
-          <!-- ENV 狀態指示 -->
-          <span
-            class="text-xs font-bold px-3 py-1 rounded-full border"
-            :class="apiUrlOk
-              ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/8'
-              : 'text-red-400 border-red-500/30 bg-red-500/8 animate-pulse'"
-          >
-            {{ apiUrlOk ? '● ENV OK' : '● ENV MISSING' }}
-          </span>
-
-          <!-- 系統狀態 -->
+          <!-- ENV -->
           <div
-            class="flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-bold tracking-widest"
-            :class="statusStyle.cls"
+            class="status-chip"
+            :class="apiUrlOk ? 'chip-ok' : 'chip-err'"
+            :aria-label="apiUrlOk ? 'Environment configured' : 'Environment missing'"
           >
-            <span class="w-2 h-2 rounded-full bg-current" :class="{ 'animate-pulse': isProcessing }"></span>
+            <span class="chip-dot"></span>
+            {{ apiUrlOk ? 'ENV OK' : 'ENV MISSING' }}
+          </div>
+
+          <!-- System State -->
+          <div class="status-chip" :class="statusStyle.cls" :aria-live="isProcessing ? 'polite' : 'off'">
+            <span class="chip-dot" :class="{ 'animate-pulse': isProcessing }"></span>
             {{ statusStyle.text }}
           </div>
         </div>
       </div>
+      <!-- neon accent line -->
+      <div class="header-accent-line" aria-hidden="true"></div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-6 pt-8 flex flex-col gap-6">
+    <!-- ══════════════════════════════════════════════════
+         MAIN CONTENT
+    ══════════════════════════════════════════════════ -->
+    <main class="main-content" role="main">
 
-      <!-- ══════════════════════════════════════════════
-           UPLOAD CARD
-      ══════════════════════════════════════════════ -->
-      <section class="card p-6">
-        <h2 class="section-title mb-5">
-          <span class="section-icon">📁</span> 上傳數據集
+      <!-- ── UPLOAD CARD ───────────────────────────────── -->
+      <section class="hud-card" aria-labelledby="upload-heading">
+        <h2 id="upload-heading" class="card-heading">
+          <!-- Upload icon (Heroicons) -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 flex-shrink-0" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.338-2.32 5.75 5.75 0 0 1 1.023 11.095" />
+          </svg>
+          上傳數據集
         </h2>
 
         <!-- Drop Zone -->
         <div
-          class="drop-zone border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300 mb-5"
+          class="drop-zone"
           :class="dropZoneCls"
+          role="button"
+          tabindex="0"
+          :aria-disabled="isProcessing"
+          aria-label="拖曳 CSV 文件至此，或按下 Enter 選擇文件"
           @dragover.prevent="isDragging = true"
           @dragleave.prevent="isDragging = false"
           @drop.prevent="onDrop"
           @click="!isProcessing && $refs.fileInput.click()"
+          @keydown.enter.prevent="!isProcessing && $refs.fileInput.click()"
         >
-          <input ref="fileInput" type="file" accept=".csv" class="hidden"
-                 :disabled="isProcessing" @change="onFileChange" />
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".csv"
+            class="sr-only"
+            :disabled="isProcessing"
+            aria-label="選擇 CSV 文件"
+            @change="onFileChange"
+          />
 
           <template v-if="!selectedFile">
-            <p class="text-5xl mb-3 opacity-40">📂</p>
-            <p class="text-gray-300 text-sm">
+            <div class="drop-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-12 h-12">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+            </div>
+            <p class="drop-text">
               拖曳 <code class="inline-code">.csv</code> 至此，或
-              <span class="text-blue-400 underline underline-offset-2">點擊選擇</span>
+              <span class="drop-link">點擊選擇</span>
             </p>
-            <p class="text-xs text-gray-600 mt-2">UTF-8 編碼，支援任意欄位結構</p>
+            <p class="drop-hint">UTF-8 編碼，支援任意欄位結構</p>
           </template>
+
           <template v-else>
-            <div class="flex items-center justify-center gap-4">
-              <span class="text-4xl">📄</span>
-              <div class="text-left">
-                <p class="font-semibold text-gray-100">{{ selectedFile.name }}</p>
-                <p class="text-xs text-gray-500 mt-0.5">{{ fmtSize(selectedFile.size) }}</p>
+            <div class="file-info">
+              <div class="file-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-8 h-8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>
               </div>
-              <button v-if="!isProcessing"
-                      class="ml-2 text-xs text-red-400 border border-red-500/30 px-3 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
-                      @click.stop="removeFile">✕ 移除</button>
+              <div>
+                <p class="file-name">{{ selectedFile.name }}</p>
+                <p class="file-size">{{ fmtSize(selectedFile.size) }}</p>
+              </div>
+              <button
+                v-if="!isProcessing"
+                class="btn-remove"
+                aria-label="移除已選擇的文件"
+                @click.stop="removeFile"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+                移除
+              </button>
             </div>
           </template>
         </div>
 
         <!-- Progress Bar -->
-        <div v-if="isProcessing || progress > 0" class="mb-5">
-          <div class="flex justify-between text-xs mb-2">
-            <span class="text-gray-400">{{ progressLabel }}</span>
-            <span class="text-blue-400 font-bold tabular-nums">{{ Math.round(progress) }}%</span>
+        <div v-if="isProcessing || progress > 0" class="progress-wrap" role="progressbar" :aria-valuenow="Math.round(progress)" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-meta">
+            <span class="progress-label">{{ progressLabel }}</span>
+            <span class="progress-pct">{{ Math.round(progress) }}%</span>
           </div>
-          <div class="h-2 bg-gray-800/80 rounded-full overflow-hidden">
+          <div class="progress-track">
             <div
-              class="h-full rounded-full transition-all duration-500"
-              :class="isProcessing ? 'shimmer' : 'bg-gradient-to-r from-blue-600 to-cyan-400'"
+              class="progress-fill"
+              :class="{ 'progress-shimmer': isProcessing }"
               :style="{ width: progress + '%' }"
             ></div>
           </div>
@@ -101,131 +139,173 @@
 
         <!-- Submit Button -->
         <button
-          class="w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2"
-          :class="isProcessing || !selectedFile || !apiUrlOk
-            ? 'bg-gray-800/60 text-gray-500 cursor-not-allowed border border-gray-700/50'
-            : 'btn-primary'"
+          class="btn-analyze"
+          :class="isProcessing || !selectedFile || !apiUrlOk ? 'btn-disabled' : 'btn-active'"
           :disabled="isProcessing || !selectedFile || !apiUrlOk"
+          :aria-busy="isProcessing"
           @click="startAnalysis"
         >
           <template v-if="!isProcessing">
-            🚀 送出分析
+            <!-- Rocket icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4" aria-hidden="true">
+              <path fill-rule="evenodd" d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 0 1 .75.75c0 5.056-2.383 9.555-6.084 12.436A6.75 6.75 0 0 1 9.75 22.5a.75.75 0 0 1-.75-.75v-4.131A15.838 15.838 0 0 1 6.382 15H2.25a.75.75 0 0 1-.75-.75 6.75 6.75 0 0 1 7.815-6.666ZM15 6.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" clip-rule="evenodd" />
+              <path d="M5.26 17.242a.75.75 0 1 0-.897-1.203 5.243 5.243 0 0 0-2.05 5.022.75.75 0 0 0 .625.627 5.243 5.243 0 0 0 5.022-2.051.75.75 0 1 0-1.202-.897 3.744 3.744 0 0 1-3.008 1.51c0-1.23.592-2.323 1.51-3.008Z" />
+            </svg>
+            啟動分析
           </template>
           <template v-else>
-            <span class="flex items-center gap-2">
-              <span class="ai-spinner"></span>
-              AI 偵辦中…
-            </span>
+            <span class="ai-spinner" aria-hidden="true"></span>
+            AI 偵辦中…
           </template>
         </button>
 
-        <!-- ENV 缺失提示 -->
-        <p v-if="!apiUrlOk" class="mt-3 text-xs text-red-400/80 text-center">
-          ⚠️ <code class="font-mono text-xs">VITE_API_URL</code> 未設定，請建立 <code class="font-mono text-xs">.env</code> 或至 Amplify 設定環境變數
+        <!-- ENV missing warning -->
+        <p v-if="!apiUrlOk" class="env-warn" role="alert">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0" aria-hidden="true">
+            <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />
+          </svg>
+          <code class="font-mono text-xs">VITE_API_URL</code> 未設定，請建立 <code class="font-mono text-xs">.env</code> 或至 Amplify 設定環境變數
         </p>
       </section>
 
-      <!-- ══════════════════════════════════════════════
-           LOG + STATS ROW
-      ══════════════════════════════════════════════ -->
-      <div v-if="isProcessing || results.length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- ── LOG + STATS ROW ──────────────────────────── -->
+      <div v-if="isProcessing || results.length > 0" class="info-grid">
 
         <!-- 偵查日誌 -->
-        <section class="lg:col-span-2 card p-6 flex flex-col">
-          <h2 class="section-title mb-3">
-            <span class="section-icon">🖥️</span> 偵查日誌
-            <span v-if="isProcessing"
-                  class="ml-2 text-xs font-black px-2 py-0.5 rounded-md bg-red-500/90 text-white animate-pulse tracking-widest">
-              ● LIVE
-            </span>
+        <section class="hud-card lg:col-span-2" aria-labelledby="log-heading">
+          <h2 id="log-heading" class="card-heading">
+            <!-- Terminal icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 flex-shrink-0" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+            偵查日誌
+            <span v-if="isProcessing" class="live-badge" role="status" aria-label="即時更新中">LIVE</span>
           </h2>
-          <div ref="logEl" class="log-window flex-1">
+          <div
+            ref="logEl"
+            class="log-window"
+            role="log"
+            aria-live="polite"
+            aria-label="偵查日誌輸出"
+          >
             <div v-for="(e, i) in logs" :key="i" class="log-line">
-              <span class="log-time">[{{ e.time }}]</span>
-              <span class="log-tag" :class="logTagCls(e.level)">{{ e.level.toUpperCase() }}</span>
+              <span class="log-ts">[{{ e.time }}]</span>
+              <span class="log-tag" :class="logTagCls(e.level)">{{ e.level.toUpperCase().padEnd(7) }}</span>
               <span class="log-msg">{{ e.message }}</span>
             </div>
-            <div v-if="isProcessing" class="log-time animate-pulse mt-1">▌</div>
+            <div v-if="isProcessing" class="log-cursor animate-pulse" aria-hidden="true">▌</div>
           </div>
         </section>
 
         <!-- 風險統計 -->
-        <section v-if="results.length > 0" class="card p-6">
-          <h2 class="section-title mb-4">
-            <span class="section-icon">📊</span> 風險統計
+        <section v-if="results.length > 0" class="hud-card" aria-labelledby="stats-heading">
+          <h2 id="stats-heading" class="card-heading">
+            <!-- Chart icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 flex-shrink-0" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+            </svg>
+            風險矩陣
           </h2>
-          <div class="grid grid-cols-2 gap-3">
-            <div v-for="s in stats" :key="s.label" class="stat-card" :class="s.cardCls">
-              <p class="text-3xl font-black leading-none" :class="s.color">{{ s.value }}</p>
-              <p class="text-xs mt-2 text-gray-500">{{ s.label }}</p>
+          <div class="stats-grid">
+            <div v-for="s in stats" :key="s.label" class="stat-tile" :class="s.tileCls">
+              <p class="stat-num" :class="s.numCls">{{ s.value }}</p>
+              <p class="stat-lbl">{{ s.label }}</p>
             </div>
           </div>
         </section>
       </div>
 
-      <!-- ══════════════════════════════════════════════
-           RESULTS TABLE
-      ══════════════════════════════════════════════ -->
-      <section v-if="results.length > 0" class="card p-6">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
-          <h2 class="section-title">
-            <span class="section-icon">📋</span> 分析結果
+      <!-- ── RESULTS TABLE ─────────────────────────────── -->
+      <section v-if="results.length > 0" class="hud-card" aria-labelledby="results-heading">
+        <div class="results-bar">
+          <h2 id="results-heading" class="card-heading">
+            <!-- Table icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 flex-shrink-0" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 19.5m9.75-9.75c0 .621-.504 1.125-1.125 1.125H12m8.625-9H12A1.125 1.125 0 0 0 10.875 3v9.75m8.625 0H12" />
+            </svg>
+            分析結果
           </h2>
-          <div class="flex gap-2">
-            <input v-model="filterText" type="text" placeholder="搜尋…"
-                   class="filter-control w-40" />
-            <select v-model="filterRisk" class="filter-control cursor-pointer">
-              <option value="">全部</option>
-              <option value="RED">🔴 高風險</option>
-              <option value="YELLOW">🟡 中風險</option>
-              <option value="BLUE">🔵 低風險</option>
+          <div class="results-controls">
+            <div class="search-wrap">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon w-4 h-4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 15.803 7.5 7.5 0 0 0 15.803 15.803Z" />
+              </svg>
+              <input
+                v-model="filterText"
+                type="search"
+                placeholder="搜尋…"
+                class="search-input"
+                aria-label="搜尋分析結果"
+              />
+            </div>
+            <select
+              v-model="filterRisk"
+              class="filter-select"
+              aria-label="依風險等級過濾"
+            >
+              <option value="">全部風險</option>
+              <option value="RED">高風險</option>
+              <option value="YELLOW">中風險</option>
+              <option value="BLUE">低風險</option>
             </select>
           </div>
         </div>
 
-        <div class="rounded-xl overflow-hidden border border-white/[0.06] overflow-x-auto">
-          <table class="w-full text-sm border-collapse">
+        <div class="table-scroll">
+          <table class="data-table" aria-label="分析結果表格">
             <thead>
-              <tr class="bg-gray-800/60 text-gray-400 text-xs uppercase tracking-wider">
-                <th class="px-4 py-3 text-left border-b border-white/[0.06] w-8 font-semibold">#</th>
-                <th v-for="col in tableColumns" :key="col.key"
-                    class="px-4 py-3 text-left border-b border-white/[0.06] cursor-pointer hover:text-blue-400 select-none whitespace-nowrap font-semibold transition-colors"
-                    @click="sortBy(col.key)">
+              <tr>
+                <th scope="col" class="th-index">#</th>
+                <th
+                  v-for="col in tableColumns"
+                  :key="col.key"
+                  scope="col"
+                  class="th-col"
+                  :aria-sort="sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'"
+                  @click="sortBy(col.key)"
+                >
                   {{ col.label }}
-                  <span class="ml-1 opacity-40 text-xs">{{ sortIcon(col.key) }}</span>
+                  <span class="sort-icon" aria-hidden="true">{{ sortIcon(col.key) }}</span>
                 </th>
-                <th class="px-4 py-3 text-left border-b border-white/[0.06] whitespace-nowrap font-semibold">風險等級</th>
+                <th scope="col" class="th-risk">風險等級</th>
               </tr>
             </thead>
             <tbody>
               <tr
                 v-for="(row, i) in filteredResults"
                 :key="i"
-                class="border-b border-white/[0.04] transition-all"
+                class="data-row"
                 :class="riskRowCls(row)"
               >
-                <td class="px-4 py-2.5 text-gray-600 text-xs">{{ i + 1 }}</td>
-                <td v-for="col in tableColumns" :key="col.key"
-                    class="px-4 py-2.5 max-w-xs">
-                  <span class="block truncate" :title="str(row[col.key])">
+                <td class="td-index">{{ i + 1 }}</td>
+                <td
+                  v-for="col in tableColumns"
+                  :key="col.key"
+                  class="td-cell"
+                >
+                  <span class="cell-text" :title="str(row[col.key])">
                     {{ trunc(str(row[col.key]), 80) }}
                   </span>
                 </td>
-                <td class="px-4 py-2.5 whitespace-nowrap">
+                <td class="td-risk">
                   <span class="risk-badge" :class="riskBadgeCls(row.risk_level)">
                     {{ riskLabel(row.risk_level) }}
                   </span>
                 </td>
               </tr>
               <tr v-if="!filteredResults.length">
-                <td :colspan="tableColumns.length + 2"
-                    class="px-4 py-10 text-center text-gray-500">無符合條件的資料</td>
+                <td :colspan="tableColumns.length + 2" class="td-empty">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-8 h-8 mx-auto mb-2 opacity-30" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+                  </svg>
+                  無符合條件的資料
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="text-xs text-gray-600 text-right mt-3">
-          顯示 {{ filteredResults.length }} / {{ results.length }} 筆
+        <p class="results-count" aria-live="polite">
+          顯示 <strong>{{ filteredResults.length }}</strong> / {{ results.length }} 筆
         </p>
       </section>
 
@@ -235,17 +315,24 @@
          ERROR TOAST
     ══════════════════════════════════════════════════ -->
     <Transition name="toast">
-      <div v-if="errorMsg" class="fixed bottom-7 right-7 z-50 max-w-md
-                                   bg-gray-900/95 border border-red-500/40 backdrop-blur-xl
-                                   rounded-2xl p-5 shadow-2xl shadow-black/60
-                                   flex gap-4 items-start">
-        <span class="text-2xl mt-0.5 flex-shrink-0">⚠️</span>
+      <div
+        v-if="errorMsg"
+        class="error-toast"
+        role="alert"
+        aria-live="assertive"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true">
+          <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />
+        </svg>
         <div class="flex-1">
-          <p class="font-bold text-red-400 text-sm mb-1">API 錯誤</p>
-          <p class="text-gray-300 text-sm leading-relaxed">{{ errorMsg }}</p>
+          <p class="toast-title">系統錯誤</p>
+          <p class="toast-msg">{{ errorMsg }}</p>
         </div>
-        <button class="text-gray-600 hover:text-gray-300 flex-shrink-0 mt-0.5 transition-colors"
-                @click="errorMsg = ''">✕</button>
+        <button class="toast-close" aria-label="關閉錯誤提示" @click="errorMsg = ''">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </Transition>
 
@@ -260,51 +347,51 @@ import { analyzeFile } from '../services/api.js'
 const apiUrlOk = Boolean(import.meta.env.VITE_API_URL)
 
 // ── Refs ───────────────────────────────────────────────────────
-const fileInput    = ref(null)
-const logEl        = ref(null)
+const fileInput = ref(null)
+const logEl     = ref(null)
 
-const selectedFile = ref(null)
-const isDragging   = ref(false)
-const isProcessing = ref(false)
-const progress     = ref(0)
+const selectedFile  = ref(null)
+const isDragging    = ref(false)
+const isProcessing  = ref(false)
+const progress      = ref(0)
 const progressLabel = ref('準備中…')
-const results      = ref([])
-const logs         = ref([])
-const errorMsg     = ref('')
-const filterText   = ref('')
-const filterRisk   = ref('')
-const sortKey      = ref('')
-const sortDir      = ref('asc')
+const results       = ref([])
+const logs          = ref([])
+const errorMsg      = ref('')
+const filterText    = ref('')
+const filterRisk    = ref('')
+const sortKey       = ref('')
+const sortDir       = ref('asc')
 
 let logTimers = []
 
 // ── System Status Style ────────────────────────────────────────
 const statusStyle = computed(() => {
-  if (isProcessing.value)        return { text: 'ANALYZING',  cls: 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' }
-  if (results.value.length > 0)  return { text: 'COMPLETE',   cls: 'text-green-400  border-green-500/40  bg-green-500/10' }
-  return { text: 'READY', cls: 'text-gray-400 border-gray-700 bg-gray-800/60' }
+  if (isProcessing.value)       return { text: 'ANALYZING', cls: 'chip-warn' }
+  if (results.value.length > 0) return { text: 'COMPLETE',  cls: 'chip-ok'   }
+  return { text: 'READY', cls: 'chip-idle' }
 })
 
 // ── Drop Zone Classes ──────────────────────────────────────────
 const dropZoneCls = computed(() => {
-  if (isProcessing.value) return 'border-gray-700/50 bg-gray-800/20 cursor-not-allowed opacity-50'
-  if (isDragging.value)   return 'border-blue-400/60 bg-blue-500/8 drop-glow'
-  if (selectedFile.value) return 'border-emerald-500/40 bg-emerald-500/5'
-  return 'border-gray-700/60 hover:border-blue-500/50 hover:bg-blue-500/5'
+  if (isProcessing.value) return 'drop-disabled'
+  if (isDragging.value)   return 'drop-dragging'
+  if (selectedFile.value) return 'drop-selected'
+  return 'drop-idle'
 })
 
 // ── Risk Counts / Stats ────────────────────────────────────────
 const riskCounts = computed(() => ({
   RED:    results.value.filter(r => r.risk_level === 'RED').length,
   YELLOW: results.value.filter(r => r.risk_level === 'YELLOW').length,
-  BLUE:   results.value.filter(r => !['RED','YELLOW'].includes(r.risk_level)).length,
+  BLUE:   results.value.filter(r => !['RED', 'YELLOW'].includes(r.risk_level)).length,
 }))
 
 const stats = computed(() => [
-  { label: '總筆數',    value: results.value.length,   color: 'text-gray-100',   cardCls: 'stat-total'  },
-  { label: '高風險 🔴', value: riskCounts.value.RED,    color: 'text-red-400',    cardCls: 'stat-red'    },
-  { label: '中風險 🟡', value: riskCounts.value.YELLOW, color: 'text-yellow-400', cardCls: 'stat-yellow' },
-  { label: '低風險 🔵', value: riskCounts.value.BLUE,   color: 'text-blue-400',   cardCls: 'stat-blue'   },
+  { label: '總筆數',  value: results.value.length,   numCls: 'num-total',  tileCls: 'tile-total'  },
+  { label: '高風險',  value: riskCounts.value.RED,    numCls: 'num-red',    tileCls: 'tile-red'    },
+  { label: '中風險',  value: riskCounts.value.YELLOW, numCls: 'num-yellow', tileCls: 'tile-yellow' },
+  { label: '低風險',  value: riskCounts.value.BLUE,   numCls: 'num-blue',   tileCls: 'tile-blue'   },
 ])
 
 // ── Table Columns ──────────────────────────────────────────────
@@ -354,7 +441,7 @@ function removeFile() {
   if (fileInput.value) fileInput.value.value = ''
 }
 
-// ── 擬真日誌腳本（因應 Bedrock 1 RPS 長等待）─────────────────
+// ── 擬真日誌腳本 ──────────────────────────────────────────────
 const LOG_SCRIPT = [
   [1500,  'info',    '資料上傳成功'],
   [4000,  'info',    '正在進行 XGBoost 特徵比對…'],
@@ -366,7 +453,6 @@ const LOG_SCRIPT = [
   [90000, 'info',    '[系統] 接近完成，感謝您的耐心…'],
   [120000,'warn',    '[系統] 超過 2 分鐘，若仍無回應請確認 S3 是否已產出結果'],
 ]
-
 function startLogScript() {
   clearLogTimers()
   logTimers = LOG_SCRIPT.map(([ms, lvl, msg]) =>
@@ -379,10 +465,10 @@ function clearLogTimers() { logTimers.forEach(clearTimeout); logTimers = [] }
 async function startAnalysis() {
   if (!selectedFile.value || isProcessing.value || !apiUrlOk) return
 
-  isProcessing.value = true
-  progress.value     = 0
-  results.value      = []
-  errorMsg.value     = ''
+  isProcessing.value  = true
+  progress.value      = 0
+  results.value       = []
+  errorMsg.value      = ''
   progressLabel.value = 'Lambda 分析中…'
 
   addLog('info', '─── 開始偵辦任務 ───')
@@ -391,16 +477,16 @@ async function startAnalysis() {
   try {
     const data = await analyzeFile(
       selectedFile.value,
-      pct  => { progress.value = pct },
+      pct => { progress.value = pct },
       ({ level, message }) => addLog(level, message),
     )
     results.value       = data
     progressLabel.value = '分析完成！'
-    addLog('success', `✅ 偵辦完畢，共 ${data.length} 筆`)
-    addLog('success', `🔴 ${riskCounts.value.RED}　🟡 ${riskCounts.value.YELLOW}　🔵 ${riskCounts.value.BLUE}`)
+    addLog('success', `✔ 偵辦完畢，共 ${data.length} 筆`)
+    addLog('success', `RED:${riskCounts.value.RED}  YELLOW:${riskCounts.value.YELLOW}  BLUE:${riskCounts.value.BLUE}`)
   } catch (err) {
     errorMsg.value = err.message
-    addLog('error', `❌ ${err.message}`)
+    addLog('error', `✘ ${err.message}`)
     progress.value = 0
   } finally {
     isProcessing.value = false
@@ -417,11 +503,11 @@ function addLog(level, message) {
 
 function logTagCls(level) {
   return {
-    info:    'text-blue-400',
-    warn:    'text-yellow-400',
-    error:   'text-red-400',
-    success: 'text-emerald-400',
-  }[level] ?? 'text-gray-400'
+    info:    'tag-info',
+    warn:    'tag-warn',
+    error:   'tag-error',
+    success: 'tag-success',
+  }[level] ?? 'tag-info'
 }
 
 function riskRowCls(row) {
@@ -438,7 +524,7 @@ function riskBadgeCls(lvl) {
 }
 
 function riskLabel(lvl) {
-  return { RED: '🔴 高風險', YELLOW: '🟡 中風險', BLUE: '🔵 低風險', GREEN: '🟢 正常' }[lvl] ?? lvl
+  return { RED: '高風險', YELLOW: '中風險', BLUE: '低風險', GREEN: '正常' }[lvl] ?? lvl
 }
 
 function sortBy(key) {
@@ -461,230 +547,576 @@ watch(errorMsg, v => { if (v) setTimeout(() => { errorMsg.value = '' }, 10000) }
 </script>
 
 <style scoped>
-/* ── Page Background ──────────────────────────────────────── */
-.page-bg {
-  background-color: #07091a;
+/* ═══════════════════════════════════════════════════════════
+   DESIGN TOKENS — Cyberpunk UI (ui-ux-pro-max / Fira Code)
+═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #020617;
+  --surface:     #0F172A;
+  --surface2:    #1E293B;
+  --border:      rgba(56, 189, 248, 0.12);
+  --border-dim:  rgba(255, 255, 255, 0.06);
+  --text:        #F8FAFC;
+  --muted:       #64748B;
+  --green:       #22C55E;
+  --cyan:        #38BDF8;
+  --red:         #EF4444;
+  --yellow:      #FBBF24;
+  --purple:      #A78BFA;
+  --radius:      12px;
+}
+
+/* ── Page Root ──────────────────────────────────────────── */
+.page-root {
+  min-height: 100vh;
+  background-color: var(--bg);
   background-image:
-    radial-gradient(ellipse 100% 60% at 50% -10%, rgba(59, 130, 246, 0.07) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(56, 189, 248, 0.06) 0%, transparent 65%),
+    linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+  font-family: 'Fira Sans', system-ui, sans-serif;
+  color: var(--text);
+  padding-bottom: 60px;
 }
 
-/* ── Header ──────────────────────────────────────────────── */
-.header-glass {
-  background: rgba(7, 9, 26, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 1px 32px rgba(0, 0, 0, 0.4);
+/* ── Header ─────────────────────────────────────────────── */
+.hud-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(2, 6, 23, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-accent-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--cyan) 30%, var(--green) 70%, transparent 100%);
+  opacity: 0.4;
 }
 
-/* ── Logo Icon ───────────────────────────────────────────── */
-.logo-icon-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(99,102,241,0.1) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+/* ── Logo Icon ──────────────────────────────────────────── */
+.shield-icon {
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.1);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: var(--cyan);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.15);
+  flex-shrink: 0;
 }
 
-/* ── Gradient Title ──────────────────────────────────────── */
-.gradient-text {
-  background: linear-gradient(135deg, #60a5fa 0%, #a5b4fc 100%);
+/* ── Title ──────────────────────────────────────────────── */
+.site-title {
+  font-family: 'Fira Code', monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cyan) 0%, var(--green) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  letter-spacing: -0.02em;
+}
+.site-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 2px;
+  letter-spacing: 0.04em;
 }
 
-/* ── Cards ───────────────────────────────────────────────── */
-.card {
-  background: linear-gradient(180deg, rgba(15, 21, 50, 0.8) 0%, rgba(10, 14, 35, 0.6) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 18px;
+/* ── Status Chips ───────────────────────────────────────── */
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border: 1px solid;
+}
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.chip-idle { color: var(--muted);  border-color: rgba(100,116,139,0.3); background: rgba(100,116,139,0.06); }
+.chip-ok   { color: var(--green);  border-color: rgba(34,197,94,0.35);  background: rgba(34,197,94,0.08);
+             box-shadow: 0 0 10px rgba(34,197,94,0.15); }
+.chip-warn { color: var(--yellow); border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.08);
+             animation: pulse-chip 1.4s ease-in-out infinite; }
+.chip-err  { color: var(--red);    border-color: rgba(239,68,68,0.35);  background: rgba(239,68,68,0.08);
+             animation: pulse-chip 1.4s ease-in-out infinite; }
+@keyframes pulse-chip { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+
+/* ── Main & Cards ───────────────────────────────────────── */
+.main-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.hud-card {
+  background: linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(10,15,32,0.9) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 4px 40px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(12px);
+    0 0 0 1px rgba(0,0,0,0.4),
+    0 4px 32px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(56,189,248,0.06);
+  position: relative;
 }
+/* Corner accent (HUD decorative element) */
+.hud-card::before,
+.hud-card::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--cyan);
+  border-style: solid;
+  opacity: 0.4;
+}
+.hud-card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-radius: 3px 0 0 0; }
+.hud-card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
 
-/* ── Section Titles ──────────────────────────────────────── */
-.section-title {
+/* ── Card Heading ───────────────────────────────────────── */
+.card-heading {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: 'Fira Code', monospace;
   font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--cyan);
+  margin-bottom: 18px;
 }
-.section-icon { font-size: 0.9rem; }
+.card-heading svg { opacity: 0.7; }
 
-/* ── Inline Code ─────────────────────────────────────────── */
-.inline-code {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* ── LIVE badge ─────────────────────────────────────────── */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 2px 7px;
   border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 0.8em;
-  font-family: 'Fira Code', 'Cascadia Code', monospace;
-  color: #93c5fd;
+  letter-spacing: 0.12em;
+  box-shadow: 0 0 10px rgba(239,68,68,0.5);
+  animation: pulse-chip 1s ease-in-out infinite;
 }
 
-/* ── Drop Zone ───────────────────────────────────────────── */
+/* ── Drop Zone ──────────────────────────────────────────── */
 .drop-zone {
-  min-height: 130px;
+  border: 2px dashed;
+  border-radius: 10px;
+  padding: 44px 24px;
+  text-align: center;
+  margin-bottom: 18px;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 140px;
 }
-.drop-glow {
-  box-shadow: 0 0 24px rgba(59, 130, 246, 0.15);
+.drop-zone:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+
+.drop-idle     { border-color: rgba(56,189,248,0.2); background: rgba(56,189,248,0.02); }
+.drop-idle:hover { border-color: rgba(56,189,248,0.45); background: rgba(56,189,248,0.05); box-shadow: 0 0 24px rgba(56,189,248,0.08); }
+.drop-dragging { border-color: var(--cyan); background: rgba(56,189,248,0.08); box-shadow: 0 0 32px rgba(56,189,248,0.2); }
+.drop-selected { border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.04); border-style: solid; }
+.drop-disabled { border-color: rgba(255,255,255,0.06); background: transparent; opacity: 0.4; cursor: not-allowed; }
+
+.drop-icon { color: var(--cyan); opacity: 0.35; margin-bottom: 12px; }
+.drop-text { color: #CBD5E1; font-size: 0.88rem; margin-bottom: 4px; }
+.drop-link { color: var(--cyan); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.drop-hint { font-size: 0.73rem; color: var(--muted); margin-top: 4px; }
+
+/* ── Inline code ────────────────────────────────────────── */
+.inline-code {
+  font-family: 'Fira Code', monospace;
+  background: rgba(56,189,248,0.1);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.82em;
+  color: var(--cyan);
 }
 
-/* ── Primary Button ──────────────────────────────────────── */
-.btn-primary {
-  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 60%, #60a5fa 100%);
-  color: white;
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35), 0 0 0 1px rgba(99, 170, 255, 0.2) inset;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-.btn-primary:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.45);
-}
-.btn-primary:active {
-  transform: translateY(0);
-}
+/* ── File info ──────────────────────────────────────────── */
+.file-info { display: flex; align-items: center; gap: 14px; }
+.file-icon { color: var(--green); opacity: 0.8; }
+.file-name { font-weight: 600; color: var(--text); font-size: 0.9rem; }
+.file-size { font-size: 0.75rem; color: var(--muted); margin-top: 2px; font-family: 'Fira Code', monospace; }
 
-/* ── Progress Shimmer ────────────────────────────────────── */
-.shimmer {
+.btn-remove {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid rgba(239,68,68,0.3);
+  color: var(--red);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+  margin-left: auto;
+}
+.btn-remove:hover { background: rgba(239,68,68,0.1); box-shadow: 0 0 10px rgba(239,68,68,0.15); }
+.btn-remove:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+/* ── Progress ───────────────────────────────────────────── */
+.progress-wrap { margin-bottom: 18px; }
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 7px;
+  font-family: 'Fira Code', monospace;
+}
+.progress-pct { color: var(--cyan); font-weight: 700; }
+.progress-track {
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan) 0%, var(--green) 100%);
+  border-radius: 99px;
+  transition: width .4s ease;
+  box-shadow: 0 0 10px rgba(34,197,94,0.4);
+}
+.progress-shimmer {
   background-size: 200% 100%;
-  background-image: linear-gradient(90deg, #1d4ed8 0%, #60a5fa 40%, #a5b4fc 60%, #1d4ed8 100%);
-  animation: shimmer 1.6s linear infinite;
+  background-image: linear-gradient(90deg, #0ea5e9 0%, #22c55e 40%, #38bdf8 60%, #0ea5e9 100%);
+  animation: shimmer 1.5s linear infinite;
 }
-@keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── Analyze Button ─────────────────────────────────────── */
+.btn-analyze {
+  width: 100%;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform .15s, box-shadow .15s, opacity .15s;
+}
+.btn-active {
+  background: linear-gradient(135deg, rgba(34,197,94,0.15) 0%, rgba(56,189,248,0.1) 100%);
+  border-color: rgba(34,197,94,0.5);
+  color: var(--green);
+  box-shadow: 0 0 20px rgba(34,197,94,0.2), inset 0 1px 0 rgba(34,197,94,0.1);
+}
+.btn-active:hover { transform: translateY(-1px); box-shadow: 0 0 32px rgba(34,197,94,0.3); }
+.btn-active:active { transform: translateY(0); }
+.btn-active:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.btn-disabled {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.07);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
-/* ── AI Spinner ──────────────────────────────────────────── */
+/* ── AI Spinner ─────────────────────────────────────────── */
 .ai-spinner {
-  display: inline-block;
-  width: 15px;
-  height: 15px;
-  border: 2px solid rgba(255,255,255,0.25);
-  border-top-color: #fff;
+  width: 15px; height: 15px;
+  border: 2px solid rgba(34,197,94,0.25);
+  border-top-color: var(--green);
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin .7s linear infinite;
   flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Log Window ──────────────────────────────────────────── */
+/* ── ENV Warning ────────────────────────────────────────── */
+.env-warn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 0.77rem;
+  color: rgba(239,68,68,0.8);
+  text-align: center;
+  justify-content: center;
+}
+
+/* ── Info Grid ──────────────────────────────────────────── */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+}
+@media (max-width: 1024px) { .info-grid { grid-template-columns: 1fr; } }
+
+/* ── Log Window ─────────────────────────────────────────── */
 .log-window {
-  background: #02040d;
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 10px;
+  background: #010208;
+  border: 1px solid rgba(56,189,248,0.08);
+  border-radius: 8px;
   padding: 14px 16px;
-  height: 280px;
+  height: 290px;
   overflow-y: auto;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: 'Fira Code', monospace;
   font-size: 0.73rem;
   scroll-behavior: smooth;
-  box-shadow: inset 0 2px 16px rgba(0,0,0,0.6);
+  box-shadow: inset 0 2px 20px rgba(0,0,0,0.8);
+  /* subtle scanline effect */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.08) 3px,
+    rgba(0,0,0,0.08) 4px
+  );
 }
 .log-window::-webkit-scrollbar { width: 3px; }
 .log-window::-webkit-scrollbar-track { background: transparent; }
-.log-window::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+.log-window::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.15); border-radius: 2px; }
 
-.log-line { display: flex; gap: 8px; margin-bottom: 4px; line-height: 1.6; flex-wrap: wrap; }
-.log-time { color: #34d399; flex-shrink: 0; opacity: 0.7; }
-.log-tag  { flex-shrink: 0; font-weight: 700; min-width: 58px; }
-.log-msg  { color: #94a3b8; word-break: break-all; }
+.log-line { display: flex; gap: 8px; margin-bottom: 3px; line-height: 1.65; flex-wrap: wrap; }
+.log-ts    { color: rgba(34,197,94,0.6); flex-shrink: 0; }
+.log-tag   { flex-shrink: 0; font-weight: 700; min-width: 60px; }
+.log-msg   { color: #94A3B8; word-break: break-all; }
+.log-cursor{ color: var(--cyan); }
 
-/* ── Stat Cards ──────────────────────────────────────────── */
-.stat-card {
-  border-radius: 12px;
-  padding: 16px;
+.tag-info    { color: var(--cyan); }
+.tag-warn    { color: var(--yellow); }
+.tag-error   { color: var(--red); }
+.tag-success { color: var(--green); }
+
+/* ── Stats ──────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.stat-tile {
+  border-radius: 8px;
+  padding: 16px 12px;
   text-align: center;
   border: 1px solid;
+  position: relative;
+  overflow: hidden;
 }
-.stat-total  {
-  background: rgba(30, 41, 70, 0.6);
-  border-color: rgba(148, 163, 184, 0.12);
+.stat-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background: currentColor;
 }
-.stat-red {
-  background: rgba(127, 29, 29, 0.25);
-  border-color: rgba(248, 113, 113, 0.2);
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.06) inset;
+.stat-num {
+  font-family: 'Fira Code', monospace;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
-.stat-yellow {
-  background: rgba(120, 53, 15, 0.25);
-  border-color: rgba(251, 191, 36, 0.2);
-  box-shadow: 0 0 20px rgba(234, 179, 8, 0.06) inset;
-}
-.stat-blue {
-  background: rgba(23, 37, 84, 0.4);
-  border-color: rgba(96, 165, 250, 0.2);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.06) inset;
-}
+.stat-lbl { font-size: 0.7rem; color: var(--muted); margin-top: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
 
-/* ── Filter Controls ─────────────────────────────────────── */
-.filter-control {
-  background: rgba(15, 23, 50, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 6px 12px;
+.tile-total  { background: rgba(30,41,59,0.6);   border-color: rgba(148,163,184,0.15); }
+.tile-red    { background: rgba(127,29,29,0.25);  border-color: rgba(239,68,68,0.25);  }
+.tile-yellow { background: rgba(120,53,15,0.25);  border-color: rgba(251,191,36,0.25); }
+.tile-blue   { background: rgba(23,37,84,0.35);   border-color: rgba(56,189,248,0.25); }
+
+.num-total  { color: #E2E8F0; }
+.num-red    { color: #FCA5A5; text-shadow: 0 0 20px rgba(239,68,68,0.5); }
+.num-yellow { color: #FDE68A; text-shadow: 0 0 20px rgba(251,191,36,0.5); }
+.num-blue   { color: #7DD3FC; text-shadow: 0 0 20px rgba(56,189,248,0.5); }
+
+/* ── Results Bar ────────────────────────────────────────── */
+.results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.results-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Search ─────────────────────────────────────────────── */
+.search-wrap { position: relative; }
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+.search-input {
+  background: rgba(15,23,42,0.8);
+  border: 1px solid rgba(56,189,248,0.12);
+  border-radius: 7px;
+  padding: 7px 12px 7px 34px;
   font-size: 0.83rem;
-  color: #e2e8f0;
+  color: var(--text);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 160px;
+  transition: border-color .15s, box-shadow .15s;
+  font-family: 'Fira Sans', system-ui, sans-serif;
 }
-.filter-control::placeholder { color: #374151; }
-.filter-control:focus {
-  border-color: rgba(96, 165, 250, 0.5);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
+.search-input::placeholder { color: var(--muted); }
+.search-input:focus { border-color: rgba(56,189,248,0.4); box-shadow: 0 0 0 3px rgba(56,189,248,0.08); }
 
-/* ── Table Row Colors (dark mode) ────────────────────────── */
-.row-red    {
-  background: rgba(127, 29, 29, 0.2);
-  color: #fca5a5;
+.filter-select {
+  background: rgba(15,23,42,0.8);
+  border: 1px solid rgba(56,189,248,0.12);
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 0.83rem;
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  transition: border-color .15s;
+  font-family: 'Fira Sans', system-ui, sans-serif;
 }
-.row-red:hover    { background: rgba(127, 29, 29, 0.32); }
+.filter-select:focus { border-color: rgba(56,189,248,0.4); box-shadow: 0 0 0 3px rgba(56,189,248,0.08); }
 
-.row-yellow {
-  background: rgba(120, 53, 15, 0.2);
-  color: #fde68a;
+/* ── Table ──────────────────────────────────────────────── */
+.table-scroll {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(56,189,248,0.08);
 }
-.row-yellow:hover { background: rgba(120, 53, 15, 0.32); }
-
-.row-blue {
-  background: rgba(23, 37, 84, 0.25);
-  color: #bfdbfe;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
 }
-.row-blue:hover   { background: rgba(23, 37, 84, 0.38); }
+.data-table thead tr {
+  background: rgba(15,23,42,0.9);
+}
+.th-index, .th-col, .th-risk {
+  padding: 11px 14px;
+  text-align: left;
+  color: var(--muted);
+  font-family: 'Fira Code', monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(56,189,248,0.1);
+}
+.th-col { cursor: pointer; transition: color .15s; }
+.th-col:hover { color: var(--cyan); }
+.th-col:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+.sort-icon { margin-left: 4px; font-size: 0.6rem; opacity: 0.5; }
 
-/* ── Risk Badges ─────────────────────────────────────────── */
+.data-row {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: filter .15s;
+}
+.data-row:hover { filter: brightness(1.15); }
+
+.row-red    { background: rgba(239,68,68,0.07);   box-shadow: inset 3px 0 0 rgba(239,68,68,0.6); }
+.row-yellow { background: rgba(251,191,36,0.07);  box-shadow: inset 3px 0 0 rgba(251,191,36,0.6); }
+.row-blue   { background: rgba(56,189,248,0.05);  box-shadow: inset 3px 0 0 rgba(56,189,248,0.5); }
+
+.td-index { padding: 10px 14px; color: var(--muted); font-size: 0.72rem; font-family: 'Fira Code', monospace; white-space: nowrap; }
+.td-cell  { padding: 10px 14px; color: #CBD5E1; max-width: 320px; }
+.cell-text { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-risk  { padding: 10px 14px; white-space: nowrap; }
+.td-empty { padding: 48px 14px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+
+/* ── Risk Badges ────────────────────────────────────────── */
 .risk-badge {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 99px;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  font-family: 'Fira Code', monospace;
+  letter-spacing: 0.05em;
 }
-.badge-red    { background: rgba(239, 68, 68, 0.15);   color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
-.badge-yellow { background: rgba(234, 179, 8, 0.15);   color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); }
-.badge-blue   { background: rgba(59, 130, 246, 0.15);  color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+.badge-red    { background: rgba(239,68,68,0.12);  color: #FCA5A5; border: 1px solid rgba(239,68,68,0.4);  box-shadow: 0 0 8px rgba(239,68,68,0.2); }
+.badge-yellow { background: rgba(251,191,36,0.12); color: #FDE68A; border: 1px solid rgba(251,191,36,0.4); box-shadow: 0 0 8px rgba(251,191,36,0.2); }
+.badge-blue   { background: rgba(56,189,248,0.1);  color: #7DD3FC; border: 1px solid rgba(56,189,248,0.4); box-shadow: 0 0 8px rgba(56,189,248,0.2); }
 
-/* ── Toast Transition ────────────────────────────────────── */
-.toast-enter-active, .toast-leave-active { transition: opacity .3s, transform .3s; }
+/* ── Result Count ───────────────────────────────────────── */
+.results-count {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 10px;
+  font-family: 'Fira Code', monospace;
+}
+.results-count strong { color: var(--cyan); }
+
+/* ── Error Toast ────────────────────────────────────────── */
+.error-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 100;
+  max-width: 440px;
+  background: rgba(15,23,42,0.97);
+  border: 1px solid rgba(239,68,68,0.45);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 24px rgba(239,68,68,0.15);
+  backdrop-filter: blur(16px);
+  color: #FCA5A5;
+}
+.toast-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 3px; }
+.toast-msg   { font-size: 0.83rem; color: #94A3B8; line-height: 1.5; }
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: color .15s;
+  border-radius: 4px;
+}
+.toast-close:hover { color: var(--text); }
+.toast-close:focus-visible { outline: 2px solid var(--cyan); }
+
+/* ── Toast Transition ───────────────────────────────────── */
+.toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(16px); }
 </style>
