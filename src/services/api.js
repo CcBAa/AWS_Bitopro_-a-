@@ -65,7 +65,19 @@ function normalizeItem(item, idx) {
     risk_level = 'BLUE'
   }
 
-  const reason = item.reason ?? item.explanation ?? '—'
+  // ── 生成 reason：優先使用後端回傳，否則根據 confidence 自動生成 ──
+  let reason = item.reason ?? item.explanation
+  if (!reason) {
+    const conf = Number(item.confidence ?? item.risk_score ?? 0)
+    const pct = (conf * 100).toFixed(1)
+    if (item.is_extreme_risk === true) {
+      reason = `風險分數 ${pct}%，極高風險，疑似洗錢或操縱行為`
+    } else if (Number(item.ai_prediction) === 1 || conf >= 0.5) {
+      reason = `風險分數 ${pct}%，存在可疑交易模式，建議持續監控`
+    } else {
+      reason = `風險分數 ${pct}%，交易模式正常`
+    }
+  }
 
   return { ...item, risk_level, reason }
 }
