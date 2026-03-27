@@ -292,13 +292,13 @@
           <!-- Drawer Header -->
           <div class="drawer-header">
             <div>
-              <p class="drawer-tag">SUSPICIOUS ACTIVITY REPORT</p>
-              <h3 class="drawer-uid">{{ drawerItem.user_id }}</h3>
+              <p class="drawer-tag">{{ drawerItem.is_extreme_risk ? 'SUSPICIOUS ACTIVITY REPORT' : 'USER RECORD' }}</p>
+              <h3 class="drawer-uid">User ID：{{ drawerItem.user_id }}</h3>
               <p class="drawer-meta">
-                信心分數：
-                <span class="font-bold" :class="confidenceTextCls(drawerItem.confidence)">
-                  {{ (drawerItem.confidence * 100).toFixed(1) }}%
-                </span>
+                判定結果：
+                <span v-if="drawerItem.is_extreme_risk" class="pred-flag pred-flagged" style="font-size:0.65rem">疑似洗錢</span>
+                <span v-else-if="drawerItem.confidence === 0" class="pred-flag pred-unknown" style="font-size:0.65rem">查無資料</span>
+                <span v-else class="pred-flag pred-normal" style="font-size:0.65rem">交易正常</span>
                 ·
                 <span class="risk-badge ml-1" :class="riskBadgeCls(drawerItem)">{{ riskLabel(drawerItem) }}</span>
               </p>
@@ -514,12 +514,19 @@ function closeDrawer() {
 }
 
 /**
- * 將 SAR Markdown 字串轉為 HTML
- * marked.parse() 等同於 markdown-it 的 md.render()
+ * 將 sar_report 字串轉為可渲染的 HTML
+ * 新版 Lambda 回傳純文字，用 marked.parse 處理（含換行）
+ * marked.parse 在 v17 為同步，直接呼叫即可
  */
 const parsedSarHtml = computed(() => {
-  if (!drawerItem.value?.sar_report) return ''
-  return marked.parse(drawerItem.value.sar_report)
+  const report = drawerItem.value?.sar_report
+  if (!report) return '<p style="color:#64748b">無記錄內容</p>'
+  try {
+    return marked.parse(String(report))
+  } catch {
+    // fallback：純文字換行轉 <br>
+    return String(report).replace(/\n/g, '<br>')
+  }
 })
 
 async function copyReport() {
