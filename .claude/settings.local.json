@@ -5,7 +5,8 @@
       "Bash(npm run:*)",
       "Skill(update-config)",
       "Bash(python3:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(find /mnt/c/AWS_Bitopro_-a- -maxdepth 3 -name *.env* -o -name amplify.yml -o -name amplify.yaml -o -name app.yaml)"
     ]
   }
 }
