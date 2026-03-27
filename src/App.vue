@@ -1,7 +1,7 @@
 <template>
-  <Dashboard />
+  <RiskDashboard />
 </template>
 
 <script setup>
-import Dashboard from './components/Dashboard.vue'
+import RiskDashboard from './components/RiskDashboard.vue'
 </script>
