@@ -326,12 +326,47 @@
             </button>
           </div>
 
-          <!-- ── SAR Markdown Content ──
-               使用 marked.parse() 將 Markdown 字串轉為 HTML
-               並以 v-html 渲染；prose 樣式由 .sar-prose 提供
-          ── -->
+          <!-- ── 判定記錄內容 ── -->
           <div class="drawer-body">
-            <div class="sar-prose" v-html="parsedSarHtml"></div>
+            <div class="sar-prose">
+              <!-- 判定標籤 -->
+              <div class="record-badge-row">
+                <span v-if="drawerItem.is_extreme_risk" class="record-badge record-badge-risk">🚨 高風險洗錢嫌疑</span>
+                <span v-else-if="drawerItem.confidence === 0" class="record-badge record-badge-unknown">⚠️ 查無資料</span>
+                <span v-else class="record-badge record-badge-normal">✅ 正常交易用戶</span>
+              </div>
+
+              <!-- 原因 -->
+              <div class="record-section">
+                <p class="record-label">判定原因</p>
+                <p class="record-value">{{ drawerItem.reason }}</p>
+              </div>
+
+              <!-- SAR 記錄 -->
+              <div class="record-section">
+                <p class="record-label">系統記錄</p>
+                <p class="record-value">{{ drawerItem.sar_report }}</p>
+              </div>
+
+              <!-- 其他欄位 -->
+              <div class="record-section">
+                <p class="record-label">詳細資訊</p>
+                <table class="record-table">
+                  <tr>
+                    <td class="record-key">User ID</td>
+                    <td class="record-val">{{ drawerItem.user_id }}</td>
+                  </tr>
+                  <tr>
+                    <td class="record-key">查表命中</td>
+                    <td class="record-val">{{ drawerItem.confidence === 1 ? '是' : '否' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="record-key">AI 判定</td>
+                    <td class="record-val">{{ drawerItem.is_extreme_risk ? '高風險 (1)' : '正常 (0)' }}</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
           </div>
 
         </aside>
@@ -1005,7 +1040,21 @@ function skeletonWidth(n) {
 /* ── SAR Prose (markdown-it / marked 輸出樣式) ─────────────────
    替代 @tailwindcss/typography prose-invert，手動實作相同效果
 ── */
-.sar-prose { color: #cbd5e1; font-size: 0.82rem; line-height: 1.75; font-family: ui-sans-serif, system-ui, sans-serif; }
+.sar-prose { color: #cbd5e1; font-size: 0.82rem; line-height: 1.75; font-family: ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; gap: 1.25rem; }
+
+.record-badge-row { display: flex; gap: 0.5rem; }
+.record-badge { padding: 0.4rem 0.875rem; border-radius: 7px; font-size: 0.8rem; font-weight: 700; }
+.record-badge-risk    { background: #450a0a; color: #fca5a5; border: 1px solid #b91c1c44; }
+.record-badge-normal  { background: #052e16; color: #86efac; border: 1px solid #15803d44; }
+.record-badge-unknown { background: #1e293b; color: #94a3b8; border: 1px solid #47556944; }
+
+.record-section { display: flex; flex-direction: column; gap: 0.35rem; }
+.record-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #475569; }
+.record-value { color: #e2e8f0; font-size: 0.85rem; line-height: 1.6; background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 0.75rem 1rem; }
+
+.record-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.record-key { padding: 0.4rem 0.75rem; color: #64748b; width: 35%; background: #0f172a; border-bottom: 1px solid #1e293b; }
+.record-val { padding: 0.4rem 0.75rem; color: #e2e8f0; border-bottom: 1px solid #1e293b; font-family: ui-monospace, monospace; }
 .sar-prose :deep(h1), .sar-prose :deep(h2), .sar-prose :deep(h3) { color: #f1f5f9; font-weight: 700; margin: 1.25em 0 0.5em; line-height: 1.3; }
 .sar-prose :deep(h1) { font-size: 1.1rem; border-bottom: 1px solid #334155; padding-bottom: 0.4rem; }
 .sar-prose :deep(h2) { font-size: 0.95rem; color: #e2e8f0; }
