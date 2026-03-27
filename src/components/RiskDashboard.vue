@@ -249,23 +249,42 @@
                   <!-- Reason -->
                   <td class="td-cell reason-cell" :title="item.reason">{{ item.reason }}</td>
 
-                  <!-- ── SAR Report 按鈕 ──
-                       查表版：每筆都有 sar_report，全部顯示按鈕
+                  <!-- ── 分析報告按鈕（兩段式）──
+                       狀態 1：尚未生成 → 顯示「生成分析」
+                       狀態 2：生成中   → 顯示 spinner
+                       狀態 3：已生成   → 顯示「查看報告」
                   ── -->
                   <td class="td-cell text-center">
+                    <!-- 生成中 spinner -->
+                    <span v-if="loadingReports.has(item.user_id)" class="report-loading">
+                      <span class="ai-spinner"></span>
+                      分析中…
+                    </span>
+                    <!-- 已有報告 → 查看 -->
                     <button
-                      v-if="item.sar_report"
+                      v-else-if="item.sar_report"
                       class="btn-report"
                       :class="item.is_extreme_risk ? '' : 'btn-report-normal'"
-                      :aria-label="`開啟 ${item.user_id} 的判定記錄`"
                       @click="openDrawer(item)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                       </svg>
-                      查看記錄
+                      查看報告
                     </button>
-                    <span v-else class="text-slate-600 text-xs">—</span>
+                    <!-- 尚未生成 → 生成按鈕 -->
+                    <button
+                      v-else
+                      class="btn-generate"
+                      :class="item.confidence === 0 ? 'btn-generate-unknown' : ''"
+                      :disabled="item.confidence === 0"
+                      @click="handleGetReport(item.user_id)"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                      </svg>
+                      生成分析
+                    </button>
                   </td>
                 </tr>
 
@@ -401,8 +420,9 @@ const progress      = ref(0)
 const progressLabel = ref('準備中…')
 const predictions   = ref([])   // ← Lambda { predictions: [...] } 解包後存放於此
 const errorMsg      = ref('')
-const drawerItem    = ref(null) // 當前開啟 SAR 抽屜的項目
-const copyLabel     = ref('複製報告')
+const drawerItem     = ref(null)        // 當前開啟 SAR 抽屜的項目
+const copyLabel      = ref('複製報告')
+const loadingReports = ref(new Set())   // 正在生成報告的 user_id 集合
 
 // ── 篩選 / 排序 ──────────────────────────────────────────────────
 const filterText  = ref('')
@@ -534,6 +554,47 @@ function riskBadgeCls(item) {
 }
 function rowCls(item) {
   return { extreme: 'row-extreme', low: '', unknown: 'row-unknown' }[riskLevel(item)]
+}
+
+// ════════════════════════════════════════════════════════════════
+// 第二段：點擊「生成分析」→ 送 JSON 取回 sar_report
+// ════════════════════════════════════════════════════════════════
+async function handleGetReport(userId) {
+  if (loadingReports.value.has(userId)) return
+
+  // 標記為載入中（觸發 Set 更新需重新賦值讓 Vue 偵測到）
+  loadingReports.value = new Set([...loadingReports.value, userId])
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_report', user_id: userId }),
+    })
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+    const data = await response.json()
+    const sarReport = data.sar_report ?? data.predictions?.[0]?.sar_report
+
+    // 更新對應列的 sar_report
+    const target = predictions.value.find(p => String(p.user_id) === String(userId))
+    if (target && sarReport) {
+      target.sar_report = sarReport
+      // 取得報告後直接開啟 drawer
+      openDrawer(target)
+    }
+  } catch (err) {
+    console.error('[handleGetReport]', err)
+    // 顯示錯誤於該列
+    const target = predictions.value.find(p => String(p.user_id) === String(userId))
+    if (target) target.sar_report = `[錯誤] 報告生成失敗：${err.message}`
+  } finally {
+    // 移除載入狀態
+    const next = new Set(loadingReports.value)
+    next.delete(userId)
+    loadingReports.value = next
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -836,6 +897,21 @@ function skeletonWidth(n) {
 .btn-report:hover { background: #78350f33; border-color: #fb923c66; }
 .btn-report-normal { background: #0f172a; border-color: #33415566; color: #64748b; }
 .btn-report-normal:hover { background: #1e293b; border-color: #94a3b855; color: #94a3b8; }
+
+.btn-generate {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.3rem 0.6rem; border-radius: 5px;
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em;
+  background: #1e1b4b; border: 1px solid #4f46e566;
+  color: #a5b4fc; cursor: pointer; transition: all 0.15s;
+}
+.btn-generate:hover:not(:disabled) { background: #312e81; border-color: #818cf8; color: #e0e7ff; }
+.btn-generate-unknown { opacity: 0.35; cursor: not-allowed; }
+
+.report-loading {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.65rem; color: #64748b;
+}
 .row-unknown { opacity: 0.6; }
 
 /* ── Alerts ───────────────────────────────────────────────────── */
