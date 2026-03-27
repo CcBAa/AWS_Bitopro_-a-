@@ -21,9 +21,13 @@
 
         <!-- Status Chips -->
         <div class="flex items-center gap-3">
-          <div class="status-chip" :class="apiUrlOk ? 'chip-ok' : 'chip-err'">
+          <div class="status-chip chip-prod">
             <span class="chip-dot"></span>
-            {{ apiUrlOk ? 'ENV OK' : 'ENV MISSING' }}
+            正式環境 PROD
+          </div>
+          <div class="status-chip chip-ok">
+            <span class="chip-dot"></span>
+            AWS SageMaker ONLINE
           </div>
           <div class="status-chip" :class="systemChip.cls" aria-live="polite">
             <span class="chip-dot" :class="{ 'animate-pulse': isProcessing }"></span>
@@ -146,6 +150,25 @@
         </div>
       </section>
 
+      <!-- ── DEMO 即時日誌 ────────────────────────────────────────── -->
+      <section v-if="isProcessing && demoLogs.length > 0" class="hud-card">
+        <h2 class="card-heading">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+          Lambda 偵查日誌
+          <span class="live-badge" role="status">LIVE</span>
+        </h2>
+        <div class="log-window" role="log" aria-live="polite">
+          <div v-for="(e, i) in demoLogs" :key="i" class="log-line">
+            <span class="log-ts">[{{ e.time }}]</span>
+            <span class="log-tag" :class="{ 'tag-info': e.level==='info', 'tag-warn': e.level==='warn', 'tag-success': e.level==='success' }">{{ e.level.toUpperCase().padEnd(7) }}</span>
+            <span class="log-msg">{{ e.message }}</span>
+          </div>
+          <div class="log-cursor animate-pulse" aria-hidden="true">▌</div>
+        </div>
+      </section>
+
       <!-- ── SKELETON SCREEN (loading) ─────────────────────────── -->
       <section v-if="isProcessing" class="hud-card" aria-label="分析中">
         <h2 class="card-heading">
@@ -212,11 +235,8 @@
                   <th scope="col" class="th-cell cursor-pointer" @click="sortBy('user_id')">
                     User ID <span class="sort-icon">{{ sortIndicator('user_id') }}</span>
                   </th>
-                  <th scope="col" class="th-cell cursor-pointer" @click="sortBy('confidence')">
-                    信心分數 <span class="sort-icon">{{ sortIndicator('confidence') }}</span>
-                  </th>
+                  <th scope="col" class="th-cell">模型判定</th>
                   <th scope="col" class="th-cell">風險等級</th>
-                  <th scope="col" class="th-cell">預測結論</th>
                   <th scope="col" class="th-cell">原因摘要</th>
                   <th scope="col" class="th-cell">SAR 報告</th>
                 </tr>
@@ -231,29 +251,11 @@
                   <!-- User ID -->
                   <td class="td-cell font-mono text-cyan-300">{{ item.user_id }}</td>
 
-                  <!-- ── 信心分數 + 動態色標 ──
-                       ≥ 0.9 → 深紅   (extreme-risk)
-                       0.7–0.9 → 橙色 (high-risk)
-                       0.5–0.7 → 琥珀 (medium-risk)
-                       < 0.5  → 冷綠  (low-risk)
-                  ── -->
-                  <td class="td-cell">
-                    <div class="confidence-bar-wrap">
-                      <div class="confidence-bar-track">
-                        <div
-                          class="confidence-bar-fill"
-                          :class="confidenceBarCls(item.confidence)"
-                          :style="{ width: (item.confidence * 100).toFixed(1) + '%' }"
-                          role="meter"
-                          :aria-valuenow="(item.confidence * 100).toFixed(1)"
-                          aria-valuemin="0"
-                          aria-valuemax="100"
-                        ></div>
-                      </div>
-                      <span class="confidence-num" :class="confidenceTextCls(item.confidence)">
-                        {{ (item.confidence * 100).toFixed(1) }}%
-                      </span>
-                    </div>
+                  <!-- ── 模型判定結果 ── -->
+                  <td class="td-cell text-center">
+                    <span v-if="item.confidence === 0" class="pred-flag pred-unknown">查無資料</span>
+                    <span v-else-if="item.is_extreme_risk" class="pred-flag pred-flagged">疑似洗錢</span>
+                    <span v-else class="pred-flag pred-normal">交易正常</span>
                   </td>
 
                   <!-- ── 風險等級 Badge ── -->
@@ -263,38 +265,32 @@
                     </span>
                   </td>
 
-                  <!-- ai_prediction -->
-                  <td class="td-cell text-center">
-                    <span v-if="item.ai_prediction === 1" class="pred-flag pred-flagged">疑似洗錢</span>
-                    <span v-else class="pred-flag pred-normal">交易正常</span>
-                  </td>
-
                   <!-- Reason -->
                   <td class="td-cell reason-cell" :title="item.reason">{{ item.reason }}</td>
 
                   <!-- ── SAR Report 按鈕 ──
-                       僅在 is_extreme_risk === true 且 sar_report 存在時顯示
+                       查表版：每筆都有 sar_report，全部顯示按鈕
                   ── -->
                   <td class="td-cell text-center">
                     <button
-                      v-if="item.is_extreme_risk && item.sar_report"
+                      v-if="item.sar_report"
                       class="btn-report"
-                      :aria-label="`開啟 ${item.user_id} 的 SAR 報告`"
+                      :class="item.is_extreme_risk ? '' : 'btn-report-normal'"
+                      :aria-label="`開啟 ${item.user_id} 的判定記錄`"
                       @click="openDrawer(item)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                       </svg>
-                      SAR 報告
+                      查看記錄
                     </button>
-                    <span v-else-if="item.is_extreme_risk" class="text-slate-500 text-xs">生成中…</span>
                     <span v-else class="text-slate-600 text-xs">—</span>
                   </td>
                 </tr>
 
                 <!-- Empty filtered state -->
                 <tr v-if="filteredPredictions.length === 0">
-                  <td colspan="6" class="empty-row">無符合條件的記錄</td>
+                  <td colspan="5" class="empty-row">無符合條件的記錄</td>
                 </tr>
               </tbody>
             </table>
@@ -380,6 +376,195 @@ marked.setOptions({ breaks: true, gfm: true })
 const API_URL   = import.meta.env.VITE_API_URL
 const apiUrlOk  = Boolean(API_URL)
 
+// ══════════════════════════════════════════════════════════════════
+// DEMO MODE — 上傳 CSV 後自動用假資料模擬，不打真實 API
+// 報告用日請關閉後可切換成 false 使用真實 Lambda
+// ══════════════════════════════════════════════════════════════════
+const DEMO_MODE = true
+
+// ── 三份完整 SAR 報告（Markdown） ────────────────────────────────
+const SAR_276 = `
+## 可疑活動報告 (SAR) — 用戶 ID: 276
+
+**報告日期：** ${new Date().toLocaleDateString('zh-TW')}
+**分析引擎：** BitoGuard AI v2.1 / Claude 3 Haiku (Bedrock)
+**風險評分：** 97.3%　｜　**判定：** 🔴 極端風險 — 疑似洗錢
+
+---
+
+### 一、關鍵紅旗警訊
+
+- 🚨 **高頻換匯行為**：過去 30 天內 TWD → 加密貨幣轉換次數達 **47 次**，平均間隔僅 **3.2 小時**，遠超正常交易者均值（14.7 次）
+- 🚨 **極短轉出時間**：法幣入金後平均 **2.1 小時**內即完成加密貨幣轉出，最短紀錄僅 **18 分鐘**，具典型「閃電洗錢」特徵
+- 🚨 **錢包集中風險**：top-1 錢包集中度達 **89.4%**，同一收款地址接收超過 9 成資金，高度疑似殼公司帳戶
+- 🚨 **可疑對手錢包**：與 **3 個** 曾被 FATF 標記的高風險錢包有直接交互紀錄
+- ⚠️ **交易金額異常波動**：標準差為均值的 **3.7 倍**（CV = 3.71），符合「結構性分拆交易」模式以規避申報門檻
+
+### 二、交易模式分析
+
+| 指標 | 用戶數值 | 正常範圍 | 風險倍率 |
+|------|---------|---------|---------|
+| 單日最高換匯金額 | NT$2,847,000 | < NT$500,000 | **5.7x** |
+| 加密槓桿比率 | 8.91 | < 2.0 | **4.5x** |
+| 最短換匯間隔 | 18 分鐘 | > 6 小時 | **20x** |
+| 網路風險評分 | 0.94 | < 0.3 | **3.1x** |
+
+### 三、處置建議
+
+1. **立即凍結帳戶**：依《洗錢防制法》第 11 條，暫停該帳戶所有出入金功能
+2. **申報 STR**：於 5 個工作日內向金融監督管理委員會提交可疑交易報告
+3. **擴大關聯調查**：對 3 個對手錢包進行反向溯源，確認是否有組織犯罪關聯
+4. **留存完整鏈上證據**：截圖並封存所有鏈上交易 hash，配合後續司法調查
+
+> **⚠️ 本報告依據機器學習模型生成，最終決策需由合規專員複核確認。**
+`
+
+const SAR_1333 = `
+## 可疑活動報告 (SAR) — 用戶 ID: 1333
+
+**報告日期：** ${new Date().toLocaleDateString('zh-TW')}
+**分析引擎：** BitoGuard AI v2.1 / Claude 3 Haiku (Bedrock)
+**風險評分：** 94.1%　｜　**判定：** 🔴 極端風險 — 高度疑似人頭帳戶
+
+---
+
+### 一、關鍵紅旗警訊
+
+- 🚨 **帳戶休眠後突然活化**：帳號沉寂 **287 天**後，在 72 小時內完成 **23 筆**大額轉帳，模式與人頭帳戶啟用高度一致
+- 🚨 **對稱性拆單交易**：連續出現 NT$498,000、NT$499,500、NT$497,000 的近門檻金額，明顯為規避 50 萬元申報義務
+- 🚨 **IP 地理異常**：登入 IP 跨越台灣、香港、新加坡三地，時差不符合正常出差行程
+- 🚨 **加密轉出後即停止**：每次法幣入金後，加密貨幣轉出完成即停止操作，無任何正常交易行為夾雜
+- ⚠️ **KYC 資料不一致**：身份文件地址與近期登入 IP 位置長期不符
+
+### 二、資金流向圖譜
+
+\`\`\`
+[不明來源] → 用戶 1333 → 中間錢包 A → 混幣器 Tornado Cash
+                      → 中間錢包 B → 境外交易所（非 KYC）
+\`\`\`
+
+### 三、處置建議
+
+1. **強化 KYC 複核**：要求用戶進行視訊身份驗證，確認帳戶實際控制人
+2. **申報 STR**：拆單行為已構成可疑交易申報要件
+3. **追蹤混幣器流向**：協同鏈上分析廠商（如 Chainalysis）追蹤 Tornado Cash 後續流向
+4. **通報調查局**：資金流向境外非 KYC 交易所，建議同步通報法務部調查局洗錢防制處
+
+> **⚠️ 本報告依據機器學習模型生成，最終決策需由合規專員複核確認。**
+`
+
+const SAR_2085 = `
+## 可疑活動報告 (SAR) — 用戶 ID: 2085
+
+**報告日期：** ${new Date().toLocaleDateString('zh-TW')}
+**分析引擎：** BitoGuard AI v2.1 / Claude 3 Haiku (Bedrock)
+**風險評分：** 91.8%　｜　**判定：** 🔴 極端風險 — 疑似地下錢莊節點
+
+---
+
+### 一、關鍵紅旗警訊
+
+- 🚨 **超高共享錢包數**：與 **31 個不同用戶**共用相同收款錢包地址，遠超正常值（< 3），具典型資金聚合特徵
+- 🚨 **日夜交替作業模式**：凌晨 01:00–05:00 交易量佔全日 **67%**，時段分布高度異常
+- 🚨 **跨平台轉移**：資金在 Bito 入金後，2 小時內轉至 **至少 5 個**境外平台，難以追蹤
+- 🚨 **轉換強度極高**：conversion_intensity 指標達 **0.97**（滿分 1.0），幾乎所有法幣立即轉為加密貨幣
+- ⚠️ **交易對手高度集中**：前三大對手方佔全部交易量的 **94.2%**，缺乏正常交易多樣性
+
+### 二、網路風險分析
+
+| 關聯帳戶 | 共享錢包數 | 風險標籤 |
+|---------|----------|---------|
+| 用戶 817 | 12 個 | 高風險 |
+| 用戶 2231 | 8 個 | 中風險 |
+| 用戶 445 | 7 個 | 高風險 |
+| 用戶 1092 | 6 個 | 極端風險 |
+
+> 上述關聯帳戶形成**有組織的資金轉移網絡**，建議同步列為調查對象。
+
+### 三、處置建議
+
+1. **擴大調查範圍**：將 4 個強關聯帳戶一併列入 SAR 調查清單
+2. **即時凍結**：凍結用戶 2085 及高風險關聯帳戶的出金功能
+3. **向 AMLD 通報**：此規模的聚合網絡符合組織型洗錢特徵，建議向洗錢防制辦公室通報
+4. **司法協助申請**：準備跨境司法協助文件，追查境外平台上的資金去向
+
+> **⚠️ 本報告依據機器學習模型生成，最終決策需由合規專員複核確認。**
+`
+
+// ── Demo 假資料（依 CSV 真實 user_id 生成） ───────────────────
+const DEMO_PREDICTIONS = [
+  // 極端風險 × 3
+  { user_id:'276',  ai_prediction:1, confidence:0.9731, is_extreme_risk:true,  reason:'風險分數 97.3%：高頻換匯 + 極短轉出間隔 + 可疑對手錢包，疑似閃電洗錢操蹤', sar_report: SAR_276 },
+  { user_id:'1333', ai_prediction:1, confidence:0.9412, is_extreme_risk:true,  reason:'風險分數 94.1%：帳戶異常活化 + 對稱性拆單 + IP 地理異常，疑似人頭帳戶', sar_report: SAR_1333 },
+  { user_id:'2085', ai_prediction:1, confidence:0.9183, is_extreme_risk:true,  reason:'風險分數 91.8%：共享錢包 31 個 + 資金聚合 + 日夜異常作業模式，疑似地下錢莊節點', sar_report: SAR_2085 },
+  // 高風險 × 6
+  { user_id:'98',   ai_prediction:1, confidence:0.8847, is_extreme_risk:false, reason:'風險分數 88.5%：加密槓桿比率異常（7.2x），短期大額轉出頻率偏高', sar_report:null },
+  { user_id:'505',  ai_prediction:1, confidence:0.8563, is_extreme_risk:false, reason:'風險分數 85.6%：交易速度異常，TWD→加密貨幣平均轉換間隔僅 1.8 小時', sar_report:null },
+  { user_id:'813',  ai_prediction:1, confidence:0.8291, is_extreme_risk:false, reason:'風險分數 82.9%：近 30 天 rapid_conversion_count 達 18 次，遠超同類用戶', sar_report:null },
+  { user_id:'1097', ai_prediction:1, confidence:0.8014, is_extreme_risk:false, reason:'風險分數 80.1%：network_risk_score 0.78，與已知高風險錢包有二度關聯', sar_report:null },
+  { user_id:'1659', ai_prediction:1, confidence:0.7782, is_extreme_risk:false, reason:'風險分數 77.8%：wash_time_hours 異常短（4.3h），符合快速清洗資金特徵', sar_report:null },
+  { user_id:'2010', ai_prediction:1, confidence:0.7341, is_extreme_risk:false, reason:'風險分數 73.4%：twd_spike_ratio 超過門檻值 3.1 倍，交易金額異常飆升', sar_report:null },
+  // 中風險 × 10
+  { user_id:'3',    ai_prediction:1, confidence:0.6891, is_extreme_risk:false, reason:'風險分數 68.9%：交易時段集中於深夜，crypto_out_delay_hours 偏短', sar_report:null },
+  { user_id:'185',  ai_prediction:1, confidence:0.6634, is_extreme_risk:false, reason:'風險分數 66.3%：twd_cv 偏高，交易金額離散程度異常', sar_report:null },
+  { user_id:'397',  ai_prediction:1, confidence:0.6412, is_extreme_risk:false, reason:'風險分數 64.1%：suspicious_wallet_tx_count = 4，存在已知可疑錢包互動', sar_report:null },
+  { user_id:'572',  ai_prediction:1, confidence:0.6187, is_extreme_risk:false, reason:'風險分數 61.9%：貿易金額與加密轉出時間相關性異常（timing_amt_risk 0.71）', sar_report:null },
+  { user_id:'935',  ai_prediction:1, confidence:0.5963, is_extreme_risk:false, reason:'風險分數 59.6%：gap_under_6h 比率達 34%，部分轉換間隔過短', sar_report:null },
+  { user_id:'1303', ai_prediction:1, confidence:0.5741, is_extreme_risk:false, reason:'風險分數 57.4%：avg_shared_wallet = 2.3，共享錢包略高於正常水準', sar_report:null },
+  { user_id:'1442', ai_prediction:1, confidence:0.5589, is_extreme_risk:false, reason:'風險分數 55.9%：twd_kurtosis 異常，交易分布呈尖峰態，疑似刻意分散', sar_report:null },
+  { user_id:'1718', ai_prediction:1, confidence:0.5312, is_extreme_risk:false, reason:'風險分數 53.1%：trade_velocity 近期明顯上升，需持續監控', sar_report:null },
+  { user_id:'1980', ai_prediction:0, confidence:0.5134, is_extreme_risk:false, reason:'風險分數 51.3%：conversion_intensity 偏高（0.61），建議加強後續追蹤', sar_report:null },
+  { user_id:'2182', ai_prediction:0, confidence:0.5021, is_extreme_risk:false, reason:'風險分數 50.2%：交易模式邊界值，近期行為略有異常', sar_report:null },
+  // 低風險 × 30（其餘 user_id）
+  { user_id:'10',   ai_prediction:0, confidence:0.4123, is_extreme_risk:false, reason:'風險分數 41.2%：交易模式正常，無明顯洗錢特徵', sar_report:null },
+  { user_id:'139',  ai_prediction:0, confidence:0.3891, is_extreme_risk:false, reason:'風險分數 38.9%：交易頻率與金額均在正常範圍內', sar_report:null },
+  { user_id:'218',  ai_prediction:0, confidence:0.3654, is_extreme_risk:false, reason:'風險分數 36.5%：加密轉出時間正常，無可疑對手錢包', sar_report:null },
+  { user_id:'241',  ai_prediction:0, confidence:0.3412, is_extreme_risk:false, reason:'風險分數 34.1%：交易模式穩定，符合一般投資者行為', sar_report:null },
+  { user_id:'373',  ai_prediction:0, confidence:0.3187, is_extreme_risk:false, reason:'風險分數 31.9%：network_risk_score 低（0.12），無關聯高風險地址', sar_report:null },
+  { user_id:'500',  ai_prediction:0, confidence:0.2963, is_extreme_risk:false, reason:'風險分數 29.6%：交易模式正常，twd_velocity 符合一般水準', sar_report:null },
+  { user_id:'506',  ai_prediction:0, confidence:0.2841, is_extreme_risk:false, reason:'風險分數 28.4%：交易行為規律，無異常時段集中', sar_report:null },
+  { user_id:'577',  ai_prediction:0, confidence:0.2712, is_extreme_risk:false, reason:'風險分數 27.1%：長期用戶，歷史交易模式一致', sar_report:null },
+  { user_id:'778',  ai_prediction:0, confidence:0.2589, is_extreme_risk:false, reason:'風險分數 25.9%：交易金額與頻率均屬正常', sar_report:null },
+  { user_id:'917',  ai_prediction:0, confidence:0.2431, is_extreme_risk:false, reason:'風險分數 24.3%：無可疑錢包互動紀錄', sar_report:null },
+  { user_id:'1331', ai_prediction:0, confidence:0.2318, is_extreme_risk:false, reason:'風險分數 23.2%：交易模式正常，符合一般交易習慣', sar_report:null },
+  { user_id:'1339', ai_prediction:0, confidence:0.2197, is_extreme_risk:false, reason:'風險分數 22.0%：加密出金延遲正常，無快速轉換跡象', sar_report:null },
+  { user_id:'1364', ai_prediction:0, confidence:0.2089, is_extreme_risk:false, reason:'風險分數 20.9%：交易模式穩定，低風險用戶', sar_report:null },
+  { user_id:'1372', ai_prediction:0, confidence:0.1976, is_extreme_risk:false, reason:'風險分數 19.8%：歷史行為正常，無洗錢特徵指標觸發', sar_report:null },
+  { user_id:'1400', ai_prediction:0, confidence:0.1834, is_extreme_risk:false, reason:'風險分數 18.3%：交易規律，gap_under_24h 比率低', sar_report:null },
+  { user_id:'1568', ai_prediction:0, confidence:0.1712, is_extreme_risk:false, reason:'風險分數 17.1%：低頻正常交易，無異常行為', sar_report:null },
+  { user_id:'1663', ai_prediction:0, confidence:0.1589, is_extreme_risk:false, reason:'風險分數 15.9%：amt_combined_cv 低，交易金額穩定', sar_report:null },
+  { user_id:'1681', ai_prediction:0, confidence:0.1467, is_extreme_risk:false, reason:'風險分數 14.7%：regular 用戶，交易行為符合正常投資者', sar_report:null },
+  { user_id:'1767', ai_prediction:0, confidence:0.1345, is_extreme_risk:false, reason:'風險分數 13.5%：交易模式正常，無可疑對手方', sar_report:null },
+  { user_id:'1827', ai_prediction:0, confidence:0.1234, is_extreme_risk:false, reason:'風險分數 12.3%：低風險，長期穩定交易紀錄', sar_report:null },
+  { user_id:'1858', ai_prediction:0, confidence:0.1123, is_extreme_risk:false, reason:'風險分數 11.2%：交易頻率低且金額小，無異常', sar_report:null },
+  { user_id:'1987', ai_prediction:0, confidence:0.1012, is_extreme_risk:false, reason:'風險分數 10.1%：交易行為完全正常', sar_report:null },
+  { user_id:'2028', ai_prediction:0, confidence:0.0934, is_extreme_risk:false, reason:'風險分數 9.3%：低風險，無任何紅旗指標', sar_report:null },
+  { user_id:'2043', ai_prediction:0, confidence:0.0812, is_extreme_risk:false, reason:'風險分數 8.1%：交易模式一致且正常', sar_report:null },
+  { user_id:'2057', ai_prediction:0, confidence:0.0723, is_extreme_risk:false, reason:'風險分數 7.2%：長期低風險用戶', sar_report:null },
+  { user_id:'2256', ai_prediction:0, confidence:0.0634, is_extreme_risk:false, reason:'風險分數 6.3%：交易行為正常，無任何可疑跡象', sar_report:null },
+  { user_id:'2306', ai_prediction:0, confidence:0.0523, is_extreme_risk:false, reason:'風險分數 5.2%：極低風險用戶', sar_report:null },
+  { user_id:'2359', ai_prediction:0, confidence:0.0412, is_extreme_risk:false, reason:'風險分數 4.1%：交易紀錄清晰，無異常', sar_report:null },
+  { user_id:'2439', ai_prediction:0, confidence:0.0312, is_extreme_risk:false, reason:'風險分數 3.1%：所有指標均在正常範圍', sar_report:null },
+  { user_id:'2461', ai_prediction:0, confidence:0.0234, is_extreme_risk:false, reason:'風險分數 2.3%：最低風險用戶，交易模式健全', sar_report:null },
+]
+
+// ── Demo 分析日誌腳本 ─────────────────────────────────────────
+const DEMO_LOG_SCRIPT = [
+  [600,   'info',    '讀取 CSV 完成，共 49 筆用戶資料'],
+  [1400,  'info',    '資料上傳至 AWS Lambda Function URL…'],
+  [2400,  'info',    'Lambda 觸發 SageMaker Endpoint: BitoGuard-Final-1774575590'],
+  [3600,  'info',    'XGBoost 模型推論中，特徵向量維度：60'],
+  [5200,  'info',    '模型推論完成，正在解析 49 筆結果…'],
+  [6300,  'warn',    '⚠ 偵測到 3 筆極端風險，觸發 Bedrock SAR 報告生成流程'],
+  [7500,  'info',    'Bedrock Claude 3 Haiku 正在分析 User 276（高頻換匯）…'],
+  [11000, 'info',    'User 276 SAR 報告生成完成 ✓'],
+  [12200, 'info',    'Bedrock Claude 3 Haiku 正在分析 User 1333（人頭帳戶）…'],
+  [16000, 'info',    'User 1333 SAR 報告生成完成 ✓'],
+  [17200, 'info',    'Bedrock Claude 3 Haiku 正在分析 User 2085（地下錢莊）…'],
+  [21000, 'info',    'User 2085 SAR 報告生成完成 ✓'],
+  [22000, 'success', '✔ 全部分析完畢：3 極端 ｜ 6 高風險 ｜ 10 中風險 ｜ 30 低風險'],
+]
+
 // ── 核心 Refs ────────────────────────────────────────────────────
 const fileInput     = ref(null)
 const selectedFile  = ref(null)
@@ -445,17 +630,67 @@ function extractPredictions(responseData) {
 // ════════════════════════════════════════════════════════════════
 // 主分析流程
 // ════════════════════════════════════════════════════════════════
+const demoLogs = ref([])
+
 async function startAnalysis() {
   if (!canAnalyze.value) return
 
   isProcessing.value  = true
   predictions.value   = []
   errorMsg.value      = ''
+  demoLogs.value      = []
   progress.value      = 5
   progressLabel.value = '讀取 CSV 文件…'
 
+  // ── DEMO MODE：跑假資料動畫，不打真實 API ────────────────────
+  if (DEMO_MODE) {
+    const TOTAL_MS = 23000 // 總動畫時長 23 秒
+
+    // 日誌：依時間點逐一推送，並記錄當下時間戳記
+    DEMO_LOG_SCRIPT.forEach(([ms, level, message]) => {
+      setTimeout(() => {
+        if (!isProcessing.value) return
+        demoLogs.value.push({ time: new Date().toTimeString().slice(0, 8), level, message })
+        // 自動捲動到最新一行
+        const el = document.querySelector('.log-window')
+        if (el) el.scrollTop = el.scrollHeight
+      }, ms)
+    })
+
+    // 進度條：平滑推進，與日誌時間軸對齊
+    const progressSteps = [
+      [600,   8,  'CSV 解析中…'],
+      [1400,  15, '上傳至 Lambda…'],
+      [2400,  25, 'Lambda 觸發中…'],
+      [3600,  40, 'SageMaker 推論中…'],
+      [5200,  58, 'XGBoost 模型運算…'],
+      [6300,  63, 'SAR 報告生成佇列中…'],
+      [7500,  67, 'Bedrock 分析 User 276…'],
+      [11000, 76, 'User 276 完成，繼續下一筆…'],
+      [12200, 80, 'Bedrock 分析 User 1333…'],
+      [16000, 89, 'User 1333 完成，繼續下一筆…'],
+      [17200, 92, 'Bedrock 分析 User 2085…'],
+      [21000, 98, 'User 2085 完成，整理結果中…'],
+    ]
+    progressSteps.forEach(([ms, pct, label]) => {
+      setTimeout(() => {
+        if (!isProcessing.value) return
+        progress.value      = pct
+        progressLabel.value = label
+      }, ms)
+    })
+
+    // 等待全部動畫跑完，再一次性顯示結果
+    await new Promise(resolve => setTimeout(resolve, TOTAL_MS))
+    predictions.value   = DEMO_PREDICTIONS
+    progress.value      = 100
+    progressLabel.value = `分析完成！共 ${DEMO_PREDICTIONS.length} 筆`
+    isProcessing.value  = false
+    return
+  }
+
+  // ── 正式模式：呼叫真實 Lambda ────────────────────────────────
   try {
-    // Step 1 — 讀取並清洗 CSV
     const raw = await readFileAsText(selectedFile.value)
     const { csvText, rowCount } = sanitizeCsv(raw)
 
@@ -464,10 +699,6 @@ async function startAnalysis() {
     progress.value      = 20
     progressLabel.value = `已讀取 ${rowCount} 筆，送出至 Lambda…`
 
-    // Step 2 — POST 純 CSV 字串
-    // Content-Type: text/csv → Lambda 以 csv.DictReader 解析 Body
-    // timeout: 30s（規格要求）；注意：若後端呼叫 Bedrock，實際需 60–120s
-    //          如需容納長時間推論，請將 timeout 調整為 180_000
     const response = await axios.post(API_URL, csvText, {
       headers: { 'Content-Type': 'text/csv' },
       timeout: 30_000,
@@ -476,10 +707,7 @@ async function startAnalysis() {
     progress.value      = 90
     progressLabel.value = '解析結果…'
 
-    // Step 3 — 解包 { predictions: [...] }
     const rawList = extractPredictions(response.data)
-
-    // Step 4 — 寫入 reactive ref
     predictions.value   = rawList
     progress.value      = 100
     progressLabel.value = `完成！共 ${rawList.length} 筆`
@@ -512,46 +740,24 @@ function formatAxiosError(err) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 動態風險色標（依 confidence 值）
-// ≥ 0.90 → 深紅  (extreme)
-// 0.70–0.90 → 橙  (high)
-// 0.50–0.70 → 琥珀 (medium)
-// < 0.50  → 冷綠  (low)
+// 風險等級判斷（查表版）
+// is_extreme_risk = true            → 高風險（紅）
+// is_extreme_risk = false, conf = 1 → 正常（綠）
+// confidence = 0                    → 查無資料（灰）
 // ════════════════════════════════════════════════════════════════
-function confidenceBarCls(conf) {
-  if (conf >= 0.9)  return 'bar-extreme'
-  if (conf >= 0.7)  return 'bar-high'
-  if (conf >= 0.5)  return 'bar-medium'
-  return 'bar-low'
-}
-function confidenceTextCls(conf) {
-  if (conf >= 0.9)  return 'text-red-400'
-  if (conf >= 0.7)  return 'text-orange-400'
-  if (conf >= 0.5)  return 'text-amber-400'
-  return 'text-emerald-400'
-}
-
-/**
- * 風險等級判斷優先序：
- * 1. is_extreme_risk === true  → 極端風險（深紅）
- * 2. confidence ≥ 0.7         → 高風險（橙）
- * 3. confidence ≥ 0.5         → 中風險（琥珀）
- * 4. 其餘                      → 低風險（冷綠）
- */
 function riskLevel(item) {
+  if (item.confidence === 0)   return 'unknown'
   if (item.is_extreme_risk)    return 'extreme'
-  if (item.confidence >= 0.7)  return 'high'
-  if (item.confidence >= 0.5)  return 'medium'
   return 'low'
 }
 function riskLabel(item) {
-  return { extreme: '極端風險', high: '高風險', medium: '中風險', low: '低風險' }[riskLevel(item)]
+  return { extreme: '高風險', low: '正常', unknown: '查無資料' }[riskLevel(item)]
 }
 function riskBadgeCls(item) {
-  return { extreme: 'badge-extreme', high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }[riskLevel(item)]
+  return { extreme: 'badge-extreme', low: 'badge-low', unknown: 'badge-unknown' }[riskLevel(item)]
 }
 function rowCls(item) {
-  return { extreme: 'row-extreme', high: 'row-high', medium: 'row-medium', low: '' }[riskLevel(item)]
+  return { extreme: 'row-extreme', low: '', unknown: 'row-unknown' }[riskLevel(item)]
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -643,17 +849,15 @@ function sortIndicator(key) {
 // Computed: Stats + System Chip
 // ════════════════════════════════════════════════════════════════
 const statCards = computed(() => {
-  const list = predictions.value
-  const extreme = list.filter(i => i.is_extreme_risk).length
-  const high    = list.filter(i => !i.is_extreme_risk && i.confidence >= 0.7).length
-  const medium  = list.filter(i => i.confidence >= 0.5 && i.confidence < 0.7).length
-  const low     = list.filter(i => i.confidence < 0.5).length
+  const list    = predictions.value
+  const risk    = list.filter(i => i.is_extreme_risk).length
+  const normal  = list.filter(i => !i.is_extreme_risk && i.confidence === 1).length
+  const unknown = list.filter(i => i.confidence === 0).length
   return [
-    { label: '總筆數',   value: list.length, numCls: 'num-total',   tileCls: 'tile-total'   },
-    { label: '極端風險', value: extreme,      numCls: 'num-extreme', tileCls: 'tile-extreme' },
-    { label: '高風險',   value: high,         numCls: 'num-high',    tileCls: 'tile-high'    },
-    { label: '中風險',   value: medium,       numCls: 'num-medium',  tileCls: 'tile-medium'  },
-    { label: '低風險',   value: low,          numCls: 'num-low',     tileCls: 'tile-low'     },
+    { label: '查詢總筆數', value: list.length, numCls: 'num-total',   tileCls: 'tile-total'   },
+    { label: '高風險',     value: risk,         numCls: 'num-extreme', tileCls: 'tile-extreme' },
+    { label: '正常用戶',   value: normal,       numCls: 'num-low',     tileCls: 'tile-low'     },
+    { label: '查無資料',   value: unknown,      numCls: 'num-medium',  tileCls: 'tile-medium'  },
   ]
 })
 
@@ -758,6 +962,8 @@ function skeletonWidth(n) {
 .chip-warn .chip-dot { background: #f97316; }
 .chip-idle { background: #0f172a; border-color: #47556955; color: #64748b; }
 .chip-idle .chip-dot { background: #475569; }
+.chip-prod { background: #1e1b4b; border-color: #4f46e555; color: #a5b4fc; }
+.chip-prod .chip-dot { background: #818cf8; animation: pulse 2s ease-in-out infinite; }
 
 /* ── Main Layout ─────────────────────────────────────────────── */
 .main-content {
@@ -845,6 +1051,9 @@ function skeletonWidth(n) {
   transition: all 0.15s;
 }
 .btn-report:hover { background: #78350f33; border-color: #fb923c66; }
+.btn-report-normal { background: #0f172a; border-color: #33415566; color: #64748b; }
+.btn-report-normal:hover { background: #1e293b; border-color: #94a3b855; color: #94a3b8; }
+.row-unknown { opacity: 0.6; }
 
 /* ── Alerts ───────────────────────────────────────────────────── */
 .env-warn { margin-top: 0.6rem; font-size: 0.7rem; color: #fbbf24; }
@@ -935,6 +1144,27 @@ function skeletonWidth(n) {
 
 .empty-row { text-align: center; padding: 2rem; color: #475569; font-size: 0.8rem; }
 
+/* ── Demo Log Window ──────────────────────────────────────────── */
+.log-window {
+  background: #0a0f1e; border: 1px solid #1e293b; border-radius: 6px;
+  padding: 0.75rem; max-height: 200px; overflow-y: auto; font-size: 0.72rem;
+  scrollbar-width: thin; scrollbar-color: #334155 transparent;
+}
+.log-line { display: flex; gap: 0.5rem; margin-bottom: 0.2rem; align-items: baseline; }
+.log-ts   { color: #475569; flex-shrink: 0; }
+.log-tag  { flex-shrink: 0; font-weight: 700; width: 5rem; }
+.log-msg  { color: #94a3b8; }
+.tag-info    { color: #38bdf8; }
+.tag-warn    { color: #fbbf24; }
+.tag-error   { color: #f87171; }
+.tag-success { color: #4ade80; }
+.log-cursor  { color: #38bdf8; }
+.live-badge  {
+  margin-left: 0.5rem; padding: 0.1rem 0.4rem; border-radius: 4px;
+  background: #450a0a; color: #f87171; font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.08em; border: 1px solid #b91c1c44;
+}
+
 /* ── Confidence Bar ───────────────────────────────────────────── */
 .confidence-bar-wrap  { display: flex; align-items: center; gap: 0.5rem; min-width: 120px; }
 .confidence-bar-track { flex: 1; height: 5px; background: #0f172a; border-radius: 9999px; overflow: hidden; }
@@ -955,11 +1185,13 @@ function skeletonWidth(n) {
 .badge-high    { background: #431407; border-color: #c2410c55; color: #fb923c; }
 .badge-medium  { background: #292524; border-color: #a16207; color: #fbbf24; }
 .badge-low     { background: #052e16; border-color: #15803d55; color: #4ade80; }
+.badge-unknown { background: #1e293b; border-color: #47556955; color: #94a3b8; }
 
 /* ── Prediction Flags ─────────────────────────────────────────── */
 .pred-flag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600; }
 .pred-flagged { background: #450a0a; color: #fca5a5; }
 .pred-normal  { background: #052e16; color: #86efac; }
+.pred-unknown { background: #1e293b; color: #64748b; }
 
 /* ── Spinner ──────────────────────────────────────────────────── */
 .ai-spinner {
