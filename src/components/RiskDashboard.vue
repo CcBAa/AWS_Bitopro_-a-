@@ -58,7 +58,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
           沒有測試資料？
-          <a href="/predict.csv" download="predict.csv" class="download-link">下載 predict.csv（12,753 筆）</a>
+          <button class="download-link" @click="downloadPredictCsv">下載 predict.csv（12,753 筆）</button>
         </div>
 
         <!-- Drop Zone -->
@@ -408,6 +408,7 @@
 import { ref, computed } from 'vue'
 import axios from 'axios'
 import { marked } from 'marked'
+import predictCsvRaw from '../assets/predict.csv?raw'
 
 // ── Marked 設定 ─────────────────────────────────────────────────
 // 若改用 markdown-it，將 marked.parse(text) 替換為：
@@ -752,6 +753,17 @@ function clearFile() {
   selectedFile.value = null
   if (fileInput.value) fileInput.value.value = ''
 }
+function downloadPredictCsv() {
+  const blob = new Blob([predictCsvRaw], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'predict.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 // ════════════════════════════════════════════════════════════════
 // Helpers
@@ -845,6 +857,7 @@ function skeletonWidth(n) {
 }
 .download-link {
   color: #22d3ee; text-decoration: none; font-weight: 500;
+  background: none; border: none; padding: 0; cursor: pointer; font-size: inherit;
 }
 .download-link:hover { text-decoration: underline; }
 
