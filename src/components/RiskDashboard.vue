@@ -52,6 +52,15 @@
           上傳交易數據集
         </h2>
 
+        <!-- 測試資料下載 -->
+        <div class="download-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          沒有測試資料？
+          <a href="/predict.csv" download="predict.csv" class="download-link">下載 predict.csv（12,753 筆）</a>
+        </div>
+
         <!-- Drop Zone -->
         <div
           class="drop-zone"
@@ -828,6 +837,16 @@ function skeletonWidth(n) {
   font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
   color: #94a3b8; text-transform: uppercase; margin-bottom: 1rem;
 }
+
+/* ── Download Hint ─────────────────────────────────────────────── */
+.download-hint {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; color: #64748b; margin-bottom: 0.75rem;
+}
+.download-link {
+  color: #22d3ee; text-decoration: none; font-weight: 500;
+}
+.download-link:hover { text-decoration: underline; }
 
 /* ── Drop Zone ────────────────────────────────────────────────── */
 .drop-zone {
